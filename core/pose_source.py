@@ -122,8 +122,18 @@ class MovesetPoseSource:
         if landmarks.size == 0:
             landmarks = np.empty((0, 4), dtype=np.float32)
 
-        normalization = self.normalizer.normalize(landmarks)
-        joint_angles = self.angle_calculator.calculate(normalization.normalized_landmarks)
+        normalized_landmarks = np.array(item.get("normalized_landmarks", []), dtype=np.float32)
+        if normalized_landmarks.size == 0:
+            normalization = self.normalizer.normalize(landmarks)
+            normalized_landmarks = normalization.normalized_landmarks
+        elif normalized_landmarks.ndim == 1:
+            normalized_landmarks = normalized_landmarks.reshape((-1, 4))
+
+        raw_joint_angles = item.get("joint_angles", {})
+        if isinstance(raw_joint_angles, dict) and raw_joint_angles:
+            joint_angles = {str(key): float(value) for key, value in raw_joint_angles.items()}
+        else:
+            joint_angles = self.angle_calculator.calculate(normalized_landmarks)
         timestamp = float(item["timestamp"]) * 1000.0
 
         return PoseFrame(
@@ -131,6 +141,6 @@ class MovesetPoseSource:
             timestamp=timestamp,
             pose_detected=bool(item["pose_detected"]),
             landmarks=landmarks,
-            normalized_landmarks=normalization.normalized_landmarks,
+            normalized_landmarks=normalized_landmarks,
             joint_angles=joint_angles,
         )
