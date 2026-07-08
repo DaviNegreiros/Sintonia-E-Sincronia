@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import bisect
-import json
 import time
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
 
-from .camera_capture import CameraCapture
-from .joint_angle_calculator import JointAngleCalculator
-from .pose_detector import PoseDetector
-from .pose_frame import PoseFrame
-from .pose_normalizer import NormalizationResult, PoseNormalizer
+from contracts.pose import PoseFrame
+from domain.pose import JointAngleCalculator, NormalizationResult, PoseNormalizer
+from domain.timing import ReferenceTimeline
+from storage import MovesetRepository
+from vision.camera_capture import CameraCapture
+from vision.pose_detector import PoseDetector
 
 
 class PoseSource(Protocol):
@@ -85,62 +84,16 @@ class MovesetPoseSource:
         self.moveset_path = Path(moveset_path).expanduser().resolve()
         self.normalizer = normalizer
         self.angle_calculator = angle_calculator
-        self.frames = self._load_frames()
-        self.timestamps = [pose_frame.timestamp for pose_frame in self.frames]
-        self._cursor = 0
+        repository = MovesetRepository(normalizer=normalizer, angle_calculator=angle_calculator)
+        self.moveset = repository.load_moveset(self.moveset_path)
+        self.timeline = ReferenceTimeline(self.moveset.frames)
+        self.frames = list(self.timeline.frames)
+        self.timestamps = list(self.timeline.timestamps)
 
     def get_next_pose(self) -> PoseFrame:
         """Return poses sequentially for Protocol compatibility."""
-        if not self.frames:
-            raise RuntimeError("Moveset has no pose frames.")
-
-        pose_frame = self.frames[min(self._cursor, len(self.frames) - 1)]
-        self._cursor += 1
-        return pose_frame
+        return self.timeline.get_next_pose()
 
     def get_poses_near(self, timestamp_ms: float, tolerance_ms: float) -> list[PoseFrame]:
         """Return all poses inside a timestamp tolerance window."""
-        start = timestamp_ms - tolerance_ms
-        end = timestamp_ms + tolerance_ms
-        start_index = bisect.bisect_left(self.timestamps, start)
-        end_index = bisect.bisect_right(self.timestamps, end)
-        return self.frames[start_index:end_index]
-
-    def _load_frames(self) -> list[PoseFrame]:
-        if not self.moveset_path.exists():
-            raise FileNotFoundError(f"Moveset not found: {self.moveset_path}")
-
-        with self.moveset_path.open("r", encoding="utf-8") as file:
-            moveset = json.load(file)
-
-        frames = [self._create_pose_frame(item) for item in moveset.get("frames", [])]
-        frames.sort(key=lambda pose_frame: pose_frame.timestamp)
-        return frames
-
-    def _create_pose_frame(self, item: dict[str, object]) -> PoseFrame:
-        landmarks = np.array(item.get("landmarks", []), dtype=np.float32)
-        if landmarks.size == 0:
-            landmarks = np.empty((0, 4), dtype=np.float32)
-
-        normalized_landmarks = np.array(item.get("normalized_landmarks", []), dtype=np.float32)
-        if normalized_landmarks.size == 0:
-            normalization = self.normalizer.normalize(landmarks)
-            normalized_landmarks = normalization.normalized_landmarks
-        elif normalized_landmarks.ndim == 1:
-            normalized_landmarks = normalized_landmarks.reshape((-1, 4))
-
-        raw_joint_angles = item.get("joint_angles", {})
-        if isinstance(raw_joint_angles, dict) and raw_joint_angles:
-            joint_angles = {str(key): float(value) for key, value in raw_joint_angles.items()}
-        else:
-            joint_angles = self.angle_calculator.calculate(normalized_landmarks)
-        timestamp = float(item["timestamp"]) * 1000.0
-
-        return PoseFrame(
-            frame=int(item["frame"]),
-            timestamp=timestamp,
-            pose_detected=bool(item["pose_detected"]),
-            landmarks=landmarks,
-            normalized_landmarks=normalized_landmarks,
-            joint_angles=joint_angles,
-        )
+        return self.timeline.get_poses_near(timestamp_ms, tolerance_ms)
