@@ -10,9 +10,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -54,21 +58,20 @@ fun HomeScreen(
 
         FloatingNotes()
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.28f),
-                contentAlignment = Alignment.Center
-            ) {
-                SintoniaLogo(size = 210.dp)
-            }
-            Hairline()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = (-86).dp)
+                .padding(horizontal = 34.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            SintoniaLogo(size = 230.dp)
+            Hairline(modifier = Modifier.padding(top = 28.dp, bottom = 42.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.72f)
-                    .padding(horizontal = 34.dp, vertical = 28.dp),
+                    .widthIn(max = 420.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -81,16 +84,17 @@ fun HomeScreen(
                     ) {
                         Text("i", color = SintoniaTextMuted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
-                    PillButton(label = "Nova Dança", leading = "▶", primary = true, onClick = onNewDance, modifier = Modifier.weight(1f))
-                }
-                if (showTips) {
-                    InfoPopover()
+                    PillButton(label = "Nova Dança", leading = "+", primary = true, onClick = onNewDance, modifier = Modifier.weight(1f))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Spacer(modifier = Modifier.size(30.dp))
-                    PillButton(label = "Danças Salvas", leading = "▦", primary = false, onClick = onLibrary, modifier = Modifier.weight(1f))
+                    PillButton(label = "Danças Salvas", leading = "▶", primary = false, onClick = onLibrary, modifier = Modifier.weight(1f))
                 }
             }
+        }
+
+        if (showTips) {
+            InfoDialog(onDismiss = { showTips = false })
         }
     }
 }
@@ -121,22 +125,31 @@ private fun FloatingNotes() {
 }
 
 @Composable
-private fun InfoPopover() {
-    Column(
-        modifier = Modifier
-            .padding(start = 38.dp, end = 4.dp)
-            .background(Color(0xEE160730), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text("Dicas de gravação", color = SintoniaText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        listOf(
-            "Use boa iluminação.",
-            "Mantenha o corpo inteiro no quadro.",
-            "Grave na vertical.",
-            "Evite fundos muito movimentados."
-        ).forEach {
-            Text(it, color = SintoniaTextMuted, fontSize = 12.sp, lineHeight = 16.sp)
+private fun InfoDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF160730),
+        title = {
+            Text("Para melhores resultados:", color = SintoniaText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "- Garanta boa iluminação",
+                    "- Mantenha o corpo inteiro no quadro",
+                    "- Utilize o celular sempre na vertical",
+                    "- Danças gravadas na vertical",
+                    "- Apenas um dançarino",
+                    "- Garanta que a câmera não se mova durante a dança"
+                ).forEach {
+                    Text(it, color = SintoniaTextMuted, fontSize = 14.sp, lineHeight = 19.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Entendi", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
+            }
         }
-    }
+    )
 }

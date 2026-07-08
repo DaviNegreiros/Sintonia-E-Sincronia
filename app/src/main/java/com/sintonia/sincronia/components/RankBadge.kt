@@ -30,6 +30,8 @@ fun RankBadge(rank: Rank, modifier: Modifier = Modifier) {
 
 private data class RankStyle(val text: Color, val background: Color, val border: Color)
 
+fun rankTextColor(rank: Rank): Color = rankStyle(rank).text
+
 private fun rankStyle(rank: Rank): RankStyle = when (rank) {
     Rank.S -> RankStyle(Color(0xFFFDE68A), Color(0x2EFBBD24), Color(0x80FBBB24))
     Rank.A_PLUS -> RankStyle(Color(0xFFFB923C), Color(0x2EFB923C), Color(0x80FB923C))

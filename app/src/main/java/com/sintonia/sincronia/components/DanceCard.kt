@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,10 +43,12 @@ fun DanceCard(
             .border(1.dp, Color(0x337C3AED), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
-        DancerSilhouette(
-            color = accent,
-            alpha = 0.17f,
-            modifier = Modifier.align(Alignment.Center)
+        DanceMediaPreview(
+            videoUri = dance.videoUri,
+            previewUri = dance.previewUri,
+            playVideo = false,
+            muted = true,
+            modifier = Modifier.fillMaxSize()
         )
 
         Column(

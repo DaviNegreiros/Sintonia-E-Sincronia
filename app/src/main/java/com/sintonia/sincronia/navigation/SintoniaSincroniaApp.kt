@@ -1,8 +1,13 @@
 package com.sintonia.sincronia.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -15,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.sintonia.sincronia.data.AppContainer
+import com.sintonia.sincronia.ui.screens.CropVideoScreen
 import com.sintonia.sincronia.ui.screens.DancingOverlay
 import com.sintonia.sincronia.ui.screens.HomeScreen
 import com.sintonia.sincronia.ui.screens.LibraryScreen
@@ -24,16 +30,24 @@ import com.sintonia.sincronia.ui.theme.SintoniaSurface
 import com.sintonia.sincronia.ui.theme.SintoniaSurfaceDeep
 import com.sintonia.sincronia.viewmodel.DanceLibraryViewModel
 import com.sintonia.sincronia.viewmodel.DanceLibraryViewModelFactory
+import com.sintonia.sincronia.viewmodel.NewDanceViewModel
+import com.sintonia.sincronia.viewmodel.NewDanceViewModelFactory
 
 @Composable
 fun SintoniaSincroniaApp() {
     val navController = rememberNavController()
-    val repository = remember { AppContainer.danceRepository }
+    val context = LocalContext.current
+    val repository = remember(context) { AppContainer.danceRepository(context) }
     val factory = remember(repository) { DanceLibraryViewModelFactory(repository) }
+    val newDanceFactory = remember(repository) { NewDanceViewModelFactory(repository) }
     val owner = LocalContext.current as androidx.lifecycle.ViewModelStoreOwner
     val libraryViewModel: DanceLibraryViewModel = viewModel(
         viewModelStoreOwner = owner,
         factory = factory
+    )
+    val newDanceViewModel: NewDanceViewModel = viewModel(
+        viewModelStoreOwner = owner,
+        factory = newDanceFactory
     )
 
     Box(
@@ -48,7 +62,13 @@ fun SintoniaSincroniaApp() {
         NavHost(
             navController = navController,
             startDestination = AppRoute.Home.route,
-            modifier = Modifier.fillMaxSize()
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
         ) {
             composable(AppRoute.Home.route) {
                 HomeScreen(
@@ -60,8 +80,19 @@ fun SintoniaSincroniaApp() {
             composable(AppRoute.NewDance.route) {
                 NewDanceScreen(
                     onBack = { navController.popBackStack() },
-                    onCreateDance = { name ->
-                        libraryViewModel.createDance(name)
+                    onVideoSelected = { navController.navigate(AppRoute.CropVideo.route) },
+                    viewModel = newDanceViewModel
+                )
+            }
+
+            composable(AppRoute.CropVideo.route) {
+                CropVideoScreen(
+                    viewModel = newDanceViewModel,
+                    onCancel = {
+                        newDanceViewModel.cancelVideoSelection()
+                        navController.popBackStack()
+                    },
+                    onImported = {
                         navController.navigate(AppRoute.Library.route) {
                             popUpTo(AppRoute.Home.route)
                         }
@@ -83,7 +114,11 @@ fun SintoniaSincroniaApp() {
                     DancingOverlay(
                         dance = dance,
                         onClose = {
-                            libraryViewModel.closeOverlay()
+                            libraryViewModel.cancelDancing()
+                            navController.popBackStack(AppRoute.Library.route, inclusive = false)
+                        },
+                        onFinished = {
+                            libraryViewModel.finishDancingWithResult()
                             navController.popBackStack(AppRoute.Library.route, inclusive = false)
                         }
                     )

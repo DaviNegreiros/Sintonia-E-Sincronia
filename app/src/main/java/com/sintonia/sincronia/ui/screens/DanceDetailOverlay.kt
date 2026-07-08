@@ -1,5 +1,6 @@
 package com.sintonia.sincronia.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import com.sintonia.sincronia.components.BackButton
 import com.sintonia.sincronia.components.DancePreview
 import com.sintonia.sincronia.components.GlowButton
 import com.sintonia.sincronia.components.Hairline
+import com.sintonia.sincronia.components.RankBadge
 import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.ui.theme.SintoniaDanger
 import com.sintonia.sincronia.ui.theme.SintoniaText
@@ -50,7 +52,7 @@ fun DanceDetailOverlay(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -74,17 +76,18 @@ fun DanceDetailOverlay(
             }
             Hairline()
 
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(top = 28.dp),
-                contentAlignment = Alignment.TopCenter
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 DancePreview(
                     dance = dance,
                     playing = playing,
-                    modifier = Modifier.width(210.dp),
+                    modifier = Modifier.width(260.dp),
                     centerContent = {
                         Box(
                             modifier = Modifier
@@ -97,12 +100,21 @@ fun DanceDetailOverlay(
                         }
                     }
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Melhor Ranque",
+                        color = SintoniaTextMuted.copy(alpha = 0.72f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    RankBadge(rank = dance.rank)
+                }
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = 34.dp),
                 contentAlignment = Alignment.Center
             ) {
                 GlowButton(label = "Dançar", onClick = onDance)
@@ -125,6 +137,8 @@ private fun DeleteConfirmation(
     onCancel: () -> Unit,
     onDelete: () -> Unit
 ) {
+    BackHandler(onBack = onCancel)
+
     Box(
         modifier = Modifier
             .fillMaxSize()

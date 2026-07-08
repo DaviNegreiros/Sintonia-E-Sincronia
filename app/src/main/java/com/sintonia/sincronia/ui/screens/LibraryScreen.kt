@@ -1,5 +1,6 @@
 package com.sintonia.sincronia.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,12 +42,20 @@ fun LibraryScreen(
     val dances by viewModel.dances.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    BackHandler {
+        when {
+            uiState.result != null -> viewModel.closeResult()
+            uiState.selectedDance != null -> viewModel.closeOverlay()
+            else -> onBack()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -68,7 +77,7 @@ fun LibraryScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 22.dp, end = 16.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -80,7 +89,7 @@ fun LibraryScreen(
         }
 
         uiState.selectedDance?.let { dance ->
-            if (!uiState.isDancing) {
+            if (!uiState.isDancing && uiState.result == null) {
                 DanceDetailOverlay(
                     dance = dance,
                     onBack = viewModel::closeOverlay,
@@ -94,6 +103,14 @@ fun LibraryScreen(
                         .background(Brush.verticalGradient(listOf(SintoniaSurface, SintoniaSurfaceDeep, Color(0xFF080014))))
                 )
             }
+        }
+
+        uiState.result?.let { result ->
+            DanceResultOverlay(
+                result = result,
+                onClose = viewModel::closeResult,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

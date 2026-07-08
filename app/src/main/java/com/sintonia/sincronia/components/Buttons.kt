@@ -97,13 +97,14 @@ fun GlowButton(
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(1.dp, if (enabled) Color(0x55A78BFA) else Color(0x337C3AED)),
         colors = colors,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 44.dp, vertical = 13.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 22.dp, vertical = 13.dp)
     ) {
         Text(
             text = label,
             color = if (enabled) Color.White else Color(0x66C4B5FD),
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 14.sp
+            fontSize = 14.sp,
+            maxLines = 1
         )
     }
 }

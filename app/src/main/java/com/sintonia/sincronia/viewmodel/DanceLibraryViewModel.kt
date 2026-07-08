@@ -4,13 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.sintonia.sincronia.data.DanceRepository
 import com.sintonia.sincronia.domain.Dance
+import com.sintonia.sincronia.domain.DanceResult
+import com.sintonia.sincronia.domain.Rank
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class DanceLibraryUiState(
     val selectedDance: Dance? = null,
-    val isDancing: Boolean = false
+    val isDancing: Boolean = false,
+    val result: DanceResult? = null
 )
 
 class DanceLibraryViewModel(
@@ -20,10 +23,6 @@ class DanceLibraryViewModel(
 
     private val _uiState = MutableStateFlow(DanceLibraryUiState())
     val uiState: StateFlow<DanceLibraryUiState> = _uiState.asStateFlow()
-
-    fun createDance(name: String) {
-        repository.createDance(name)
-    }
 
     fun selectDance(dance: Dance) {
         _uiState.value = DanceLibraryUiState(selectedDance = dance)
@@ -38,10 +37,36 @@ class DanceLibraryViewModel(
         _uiState.value = DanceLibraryUiState(selectedDance = selectedDance, isDancing = true)
     }
 
+    fun cancelDancing() {
+        val selectedDance = _uiState.value.selectedDance ?: return
+        _uiState.value = DanceLibraryUiState(selectedDance = selectedDance)
+    }
+
+    fun finishDancingWithResult() {
+        val selectedDance = _uiState.value.selectedDance ?: return
+        _uiState.value = DanceLibraryUiState(
+            selectedDance = selectedDance,
+            isDancing = false,
+            result = TemporaryDanceResultProvider.createFor(selectedDance)
+        )
+    }
+
+    fun closeResult() {
+        _uiState.value = DanceLibraryUiState()
+    }
+
     fun deleteSelectedDance() {
         val selectedDance = _uiState.value.selectedDance ?: return
         repository.deleteDance(selectedDance.id)
         closeOverlay()
+    }
+
+    private object TemporaryDanceResultProvider {
+        fun createFor(dance: Dance): DanceResult = DanceResult(
+            danceName = dance.name,
+            rank = Rank.B,
+            successPercentage = 76
+        )
     }
 }
 

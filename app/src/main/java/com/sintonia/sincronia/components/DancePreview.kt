@@ -35,7 +35,6 @@ fun DancePreview(
     centerContent: @Composable (() -> Unit)? = null
 ) {
     val accent = Color(dance.accentColor)
-
     Box(
         modifier = modifier
             .aspectRatio(9f / 16f)
@@ -47,10 +46,12 @@ fun DancePreview(
             )
             .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
     ) {
-        DancerSilhouette(
-            color = accent,
-            modifier = Modifier.align(Alignment.Center),
-            alpha = 0.2f
+        DanceMediaPreview(
+            videoUri = dance.videoUri,
+            previewUri = dance.previewUri,
+            playVideo = playing,
+            muted = false,
+            modifier = Modifier.fillMaxSize()
         )
         if (playing) {
             AudioBars(

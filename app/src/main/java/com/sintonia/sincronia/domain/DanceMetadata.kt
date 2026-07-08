@@ -1,14 +1,10 @@
 package com.sintonia.sincronia.domain
 
 data class DanceMetadata(
-    val durationSeconds: Int,
-    val bpm: Int?,
-    val difficulty: Difficulty,
-    val source: DanceSource
+    val id: String,
+    val title: String,
+    val video: String,
+    val preview: String?,
+    val moveset: String?,
+    val bestRank: Rank?
 )
-
-enum class DanceSource {
-    Mock,
-    LocalVideo,
-    ProcessedOffline
-}
