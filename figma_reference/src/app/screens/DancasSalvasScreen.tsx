@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Play } from "lucide-react";
 
-import { RANK_STYLE } from "../mockDances";
+import { getRankStyle } from "../data";
 import type { Dance } from "../types";
 import { BackBtn, Dancer, Hairline } from "../components/shared";
 
@@ -29,6 +29,7 @@ export function DancasSalvasScreen({ onBack, onSelect, dances }: { onBack:()=>vo
 
 function DanceCard({ dance, onClick }: { dance:Dance; onClick:()=>void }) {
   const [h,setH]=useState(false);
+  const rankStyle = getRankStyle(dance.rank);
   return (
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
       style={{ aspectRatio:"9/16", borderRadius:14, overflow:"hidden", position:"relative", cursor:"pointer", background:dance.gradient, border:`1px solid ${h?"rgba(167,139,250,0.35)":"rgba(124,58,237,0.2)"}`, boxShadow:h?"0 8px 24px rgba(0,0,0,0.5)":"0 2px 10px rgba(0,0,0,0.35)", transform:h?"scale(1.025)":"scale(1)", transition:"all 0.18s" }}>
@@ -39,7 +40,7 @@ function DanceCard({ dance, onClick }: { dance:Dance; onClick:()=>void }) {
         <p style={{ fontFamily:"'Outfit',sans-serif", fontWeight:600, fontSize:"0.68rem", color:"#f0eaff", lineHeight:1.3, textAlign:"center", marginBottom:5 }}>{dance.name}</p>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
           <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:"0.56rem", color:"rgba(167,139,250,0.6)", letterSpacing:"0.06em", fontWeight:500 }}>Melhor Ranque</span>
-          <span style={{ fontFamily:"'Outfit',sans-serif", fontWeight:800, fontSize:"0.65rem", color:RANK_STYLE[dance.rank].color, background:RANK_STYLE[dance.rank].bg, border:`1px solid ${RANK_STYLE[dance.rank].border}`, borderRadius:5, padding:"1px 5px", letterSpacing:"0.04em", lineHeight:1.5 }}>
+          <span style={{ fontFamily:"'Outfit',sans-serif", fontWeight:800, fontSize:"0.65rem", color:rankStyle.color, background:rankStyle.bg, border:`1px solid ${rankStyle.border}`, borderRadius:5, padding:"1px 5px", letterSpacing:"0.04em", lineHeight:1.5 }}>
             {dance.rank}
           </span>
         </div>

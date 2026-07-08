@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { DANCES } from "./mockDances";
+import { getInitialDances } from "./data";
 import type { Dance, Page } from "./types";
 import { DancaDetailModal, DancandoOverlay } from "./overlays";
 import { DancasSalvasScreen, HomeScreen, NovaDancaScreen } from "./screens";
@@ -8,7 +8,7 @@ import { APP_KEYFRAMES } from "./styles/keyframes";
 
 export default function App() {
   const [page,setPage]=useState<Page>("home");
-  const [dances,setDances]=useState<Dance[]>(DANCES);
+  const [dances,setDances]=useState<Dance[]>(getInitialDances);
   const [selected,setSelected]=useState<Dance|null>(null);
   const [dancing,setDancing]=useState(false);
 
