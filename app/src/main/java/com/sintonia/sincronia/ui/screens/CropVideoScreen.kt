@@ -175,7 +175,10 @@ fun CropVideoScreen(
             .fillMaxSize()
             .background(Color(0xFF05000E))
     ) {
-        CropHeader(onCancel = if (uiState.isImporting) viewModel::cancelImport else onCancel)
+        CropHeader(
+            isImporting = uiState.isImporting,
+            onCancel = if (uiState.isImporting) viewModel::cancelImport else onCancel
+        )
 
         Box(
             modifier = Modifier
@@ -208,6 +211,7 @@ fun CropVideoScreen(
                     cropOffset = cropOffset,
                     cropSize = cropSize,
                     isLocked = uiState.isImporting,
+                    showAspectLabel = !uiState.isImporting,
                     onMove = { drag ->
                         cropOffset = Offset(
                             x = (cropOffset.x + drag.x).coerceIn(0f, videoRect.width - cropSize.width),
@@ -275,7 +279,10 @@ private fun PerformanceReportDialog(
 }
 
 @Composable
-private fun CropHeader(onCancel: () -> Unit) {
+private fun CropHeader(
+    isImporting: Boolean,
+    onCancel: () -> Unit
+) {
     Column {
         Row(
             modifier = Modifier
@@ -285,20 +292,24 @@ private fun CropHeader(onCancel: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BackButton(onClick = onCancel)
+            if (!isImporting) {
+                BackButton(onClick = onCancel)
+            }
             Text(
-                "Recortar Video",
+                if (isImporting) "Processando o vídeo..." else "Recortar Video",
                 color = SintoniaText,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )
-            Text(
-                "Arraste o quadro",
-                color = SintoniaPrimary.copy(alpha = 0.78f),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 11.sp
-            )
+            if (!isImporting) {
+                Text(
+                    "Arraste o quadro",
+                    color = SintoniaPrimary.copy(alpha = 0.78f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                )
+            }
         }
         Hairline()
     }
@@ -374,6 +385,7 @@ private fun CropFrame(
     cropOffset: Offset,
     cropSize: Size,
     isLocked: Boolean,
+    showAspectLabel: Boolean,
     onMove: (Offset) -> Unit
 ) {
     val density = LocalDensity.current
@@ -408,15 +420,17 @@ private fun CropFrame(
             drawLine(gridColor, Offset(0f, size.height / 3f), Offset(size.width, size.height / 3f), strokeWidth = 1f)
             drawLine(gridColor, Offset(0f, size.height * 2f / 3f), Offset(size.width, size.height * 2f / 3f), strokeWidth = 1f)
         }
-        Text(
-            text = "9:16",
-            color = SintoniaText,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 11.sp,
-            modifier = Modifier
-                .background(Color(0xAA160730), RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 5.dp)
-        )
+        if (showAspectLabel) {
+            Text(
+                text = "9:16",
+                color = SintoniaText,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .background(Color(0xAA160730), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
+            )
+        }
     }
 }
 

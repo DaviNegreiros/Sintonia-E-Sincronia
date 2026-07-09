@@ -1,14 +1,12 @@
 package com.sintonia.sincronia.processing
 
-import android.graphics.Bitmap
-import android.graphics.Matrix
+import android.graphics.ImageFormat
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import kotlinx.coroutines.ensureActive
 import java.io.File
-import java.nio.ByteBuffer
 import kotlin.coroutines.coroutineContext
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -24,17 +22,11 @@ data class DecodedVideoInfo(
     val durationSeconds: Double
 )
 
-data class DecodedVideoFrame(
-    val index: Int,
-    val presentationTimeUs: Long,
-    val bitmap: Bitmap
-)
-
 class SequentialVideoFrameDecoder(
     private val videoFile: File,
     private val performanceTracker: ProcessingPerformanceTracker? = null
 ) {
-    private var reusableArgb = IntArray(0)
+    private val frameBuffers = RgbaFrameBuffers()
 
     suspend fun decodeFrames(onFrame: suspend (DecodedVideoInfo, DecodedVideoFrame) -> Unit): DecodedVideoInfo {
         val openStartedNs = System.nanoTime()
@@ -70,6 +62,7 @@ class SequentialVideoFrameDecoder(
             var frameIndex = 0
             var emittedFrameCount = 0
             var nextTargetTimeUs = 0L
+            var lastTimestampMs = -1L
 
             while (!outputDone) {
                 coroutineContext.ensureActive()
@@ -128,9 +121,18 @@ class SequentialVideoFrameDecoder(
                                 )
                                 if (image != null) {
                                     image.use { frameImage ->
-                                        val bitmap = frameImage.toDisplayBitmap(info, performanceTracker)
+                                        val timestampMs = presentationTimeUs
+                                            .toMonotonicMillisecondsAfter(lastTimestampMs)
+                                        lastTimestampMs = timestampMs
+                                        frameImage.toDisplayFrame(
+                                            info = info,
+                                            frameIndex = frameIndex,
+                                            presentationTimeUs = presentationTimeUs,
+                                            timestampMs = timestampMs,
+                                            performanceTracker = performanceTracker
+                                        )
                                         performanceTracker?.recordProcessedFrame()
-                                        onFrame(info, DecodedVideoFrame(frameIndex, presentationTimeUs, bitmap))
+                                        onFrame(info, frameBuffers.frame)
                                     }
                                     VideoDecodePerformanceLogger.frameDecoded(
                                         emittedFrameCount,
@@ -194,146 +196,109 @@ class SequentialVideoFrameDecoder(
         )
     }
 
-    private fun Image.toDisplayBitmap(
+    private fun Image.toDisplayFrame(
         info: DecodedVideoInfo,
+        frameIndex: Int,
+        presentationTimeUs: Long,
+        timestampMs: Long,
         performanceTracker: ProcessingPerformanceTracker?
-    ): Bitmap {
-        val rawBitmap = performanceTracker?.measureImageToBitmap {
-            toBitmap(info.rawWidth, info.rawHeight)
-        } ?: toBitmap(info.rawWidth, info.rawHeight)
-        val rotatedBitmap = performanceTracker?.measureBitmapTransform {
-            rawBitmap.rotate(info.rotationDegrees)
-        } ?: rawBitmap.rotate(info.rotationDegrees)
-        return if (rotatedBitmap.width == info.width && rotatedBitmap.height == info.height) {
-            rotatedBitmap
-        } else {
-            performanceTracker?.measureBitmapTransform {
-                Bitmap.createScaledBitmap(rotatedBitmap, info.width, info.height, true).also {
-                    rotatedBitmap.recycle()
-                }
-            } ?: Bitmap.createScaledBitmap(rotatedBitmap, info.width, info.height, true).also {
-                rotatedBitmap.recycle()
-            }
+    ) {
+        require(format == ImageFormat.YUV_420_888) {
+            "Formato de imagem não suportado pelo pipeline nativo: $format."
         }
-    }
-
-    private fun Image.toBitmap(targetWidth: Int, targetHeight: Int): Bitmap {
+        require(planes.size >= 3) {
+            "YUV_420_888 deve possuir ao menos 3 planos; recebido: ${planes.size}."
+        }
         val crop = cropRect
         val cropLeft = crop.left
         val cropTop = crop.top
-        val width = crop.width()
-        val height = crop.height()
-        val pixelCount = width * height
-        val argb = obtainArgbBuffer(pixelCount)
+        val cropWidth = crop.width().roundToEven()
+        val cropHeight = crop.height().roundToEven()
+        val tempPixelCount = maxOf(
+            cropWidth * cropHeight,
+            info.rawWidth * info.rawHeight,
+            info.width * info.height
+        )
+        frameBuffers.ensure(info.width, info.height, tempPixelCount)
         val imagePlanes = planes
         val yPlane = imagePlanes[0]
         val uPlane = imagePlanes[1]
         val vPlane = imagePlanes[2]
-        val yBuffer = yPlane.buffer
-        val uBuffer = uPlane.buffer
-        val vBuffer = vPlane.buffer
-        val yRowStride = yPlane.rowStride
-        val uRowStride = uPlane.rowStride
-        val vRowStride = vPlane.rowStride
-        val uPixelStride = uPlane.pixelStride
-        val vPixelStride = vPlane.pixelStride
-
-        var row = 0
-        while (row < height) {
-            val absoluteRow = cropTop + row
-            val chromaRow = absoluteRow shr 1
-            val nextRowSharesChroma = row + 1 < height && ((absoluteRow + 1) shr 1) == chromaRow
-            val yRowStart = yRowStride * absoluteRow + cropLeft
-            val outputRowStart = row * width
-            val nextYRowStart = if (nextRowSharesChroma) yRowStart + yRowStride else 0
-            val nextOutputRowStart = if (nextRowSharesChroma) outputRowStart + width else 0
-            val uRowStart = uRowStride * chromaRow
-            val vRowStart = vRowStride * chromaRow
-            var col = 0
-            var absoluteCol = cropLeft
-
-            while (col < width) {
-                val chromaCol = absoluteCol shr 1
-                val u = uBuffer.getUnsigned(uRowStart + uPixelStride * chromaCol)
-                val v = vBuffer.getUnsigned(vRowStart + vPixelStride * chromaCol)
-                val outputIndex = outputRowStart + col
-                argb[outputIndex] = yuvToArgb(yBuffer.getUnsigned(yRowStart + col), u, v)
-                if (nextRowSharesChroma) {
-                    argb[nextOutputRowStart + col] = yuvToArgb(
-                        yBuffer.getUnsigned(nextYRowStart + col),
-                        u,
-                        v
-                    )
-                }
-
-                if (col + 1 < width && ((absoluteCol + 1) shr 1) == chromaCol) {
-                    val nextCol = col + 1
-                    argb[outputIndex + 1] = yuvToArgb(yBuffer.getUnsigned(yRowStart + nextCol), u, v)
-                    if (nextRowSharesChroma) {
-                        argb[nextOutputRowStart + nextCol] = yuvToArgb(
-                            yBuffer.getUnsigned(nextYRowStart + nextCol),
-                            u,
-                            v
-                        )
-                    }
-                    col += 2
-                    absoluteCol += 2
-                } else {
-                    col += 1
-                    absoluteCol += 1
-                }
-            }
-
-            row += if (nextRowSharesChroma) 2 else 1
+        require(yPlane.pixelStride == 1) {
+            "Pipeline nativo requer pixelStride 1 no plano Y; recebido: ${yPlane.pixelStride}."
         }
-
-        val bitmap = Bitmap.createBitmap(argb, width, height, Bitmap.Config.ARGB_8888)
-        return if (width == targetWidth && height == targetHeight) {
-            bitmap
-        } else {
-            Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true).also {
-                bitmap.recycle()
-            }
+        require(uPlane.pixelStride == vPlane.pixelStride) {
+            "Pipeline nativo requer pixelStride U/V igual; recebido U=${uPlane.pixelStride}, V=${vPlane.pixelStride}."
         }
+        val rgbaStride = info.width * RgbaFrameBuffers.RGBA_BYTES_PER_PIXEL
+        val result = performanceTracker?.measureLibyuv {
+            NativeLibyuvBridge.convertAndroid420ToRgba(
+                yBuffer = yPlane.buffer,
+                uBuffer = uPlane.buffer,
+                vBuffer = vPlane.buffer,
+                yRowStride = yPlane.rowStride,
+                uRowStride = uPlane.rowStride,
+                vRowStride = vPlane.rowStride,
+                uvPixelStride = uPlane.pixelStride,
+                cropLeft = cropLeft,
+                cropTop = cropTop,
+                cropWidth = cropWidth,
+                cropHeight = cropHeight,
+                targetWidth = info.rawWidth,
+                targetHeight = info.rawHeight,
+                rotationDegrees = info.rotationDegrees,
+                tempI420A = frameBuffers.tempI420A,
+                tempI420B = frameBuffers.tempI420B,
+                rgbaBuffer = frameBuffers.rgbaBuffer,
+                rgbaStride = rgbaStride
+            )
+        } ?: NativeLibyuvBridge.convertAndroid420ToRgba(
+            yBuffer = yPlane.buffer,
+            uBuffer = uPlane.buffer,
+            vBuffer = vPlane.buffer,
+            yRowStride = yPlane.rowStride,
+            uRowStride = uPlane.rowStride,
+            vRowStride = vPlane.rowStride,
+            uvPixelStride = uPlane.pixelStride,
+            cropLeft = cropLeft,
+            cropTop = cropTop,
+            cropWidth = cropWidth,
+            cropHeight = cropHeight,
+            targetWidth = info.rawWidth,
+            targetHeight = info.rawHeight,
+            rotationDegrees = info.rotationDegrees,
+            tempI420A = frameBuffers.tempI420A,
+            tempI420B = frameBuffers.tempI420B,
+            rgbaBuffer = frameBuffers.rgbaBuffer,
+            rgbaStride = rgbaStride
+        )
+        check(result == 0) { "Falha na conversão libyuv: código $result." }
+        frameBuffers.rgbaBuffer.position(0)
+        frameBuffers.rgbaBuffer.limit(frameBuffers.rgbaBuffer.capacity())
+        frameBuffers.frame.update(
+            index = frameIndex,
+            presentationTimeUs = presentationTimeUs,
+            timestampMs = timestampMs,
+            width = info.width,
+            height = info.height,
+            rgbaStride = rgbaStride,
+            rgbaBuffer = frameBuffers.rgbaBuffer
+        )
     }
 
-    private fun obtainArgbBuffer(size: Int): IntArray {
-        if (reusableArgb.size != size) {
-            reusableArgb = IntArray(size)
-        }
-        return reusableArgb
+    private fun Long.toMonotonicMillisecondsAfter(previousTimestampMs: Long): Long {
+        val timestampMs = (this / 1000L).coerceAtLeast(0L)
+        return timestampMs.coerceAtLeast(previousTimestampMs + 1L)
     }
 
-    private fun Bitmap.rotate(degrees: Int): Bitmap {
-        if (degrees == 0) return this
-        val matrix = Matrix().apply {
-            postRotate(degrees.toFloat())
-        }
-        return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true).also {
-            recycle()
-        }
-    }
+    private fun Int.roundToEven(): Int =
+        if (this % 2 == 0) this else this - 1
 
-    private fun ByteBuffer.getUnsigned(index: Int): Int = get(index).toInt() and 0xff
+    private fun Int.floorMod(modulus: Int): Int =
+        ((this % modulus) + modulus) % modulus
 
-    private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
-
-    private fun yuvToArgb(y: Int, u: Int, v: Int): Int {
-        val c = y - 16
-        val d = u - 128
-        val e = v - 128
-        val r = (298 * c + 409 * e + 128) shr 8
-        val g = (298 * c - 100 * d - 208 * e + 128) shr 8
-        val b = (298 * c + 516 * d + 128) shr 8
-        return -0x1000000 or
-            (r.coerceIn(0, 255) shl 16) or
-            (g.coerceIn(0, 255) shl 8) or
-            b.coerceIn(0, 255)
-    }
-
-    private fun Int.roundToEven(): Int = if (this % 2 == 0) this else this - 1
-
-    private fun elapsedMs(startedNs: Long): Long = (System.nanoTime() - startedNs) / 1_000_000L
+    private fun elapsedMs(startedNs: Long): Long =
+        (System.nanoTime() - startedNs) / 1_000_000L
 
     private companion object {
         const val TIMEOUT_US = 10_000L

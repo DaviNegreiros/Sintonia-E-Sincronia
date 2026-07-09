@@ -31,25 +31,20 @@ class DancePoseProcessor(
 
         MediaPipePoseLandmarker(appContext).use { landmarker ->
             var encoder: DebugVideoEncoder? = null
-            var lastTimestampMs = -1L
             try {
                 finalInfo = SequentialVideoFrameDecoder(videoFile, performanceTracker).decodeFrames { videoInfo, decodedFrame ->
                     coroutineContext.ensureActive()
                     val debugEncoder = encoder ?: DebugVideoEncoder(
                         outputFile = debugVideoFile,
+                        sourceVideoFile = videoFile,
                         width = videoInfo.width,
                         height = videoInfo.height,
                         fps = videoInfo.fps
                     ).also { encoder = it }
 
-                    val timestampMs = decodedFrame.presentationTimeUs
-                        .toMonotonicMillisecondsAfter(lastTimestampMs)
-                    lastTimestampMs = timestampMs
-
                     processDecodedFrame(
                         decodedFrame = decodedFrame,
                         videoInfo = videoInfo,
-                        timestampMs = timestampMs,
                         landmarker = landmarker,
                         encoder = debugEncoder,
                         performanceTracker = performanceTracker,
@@ -97,7 +92,6 @@ class DancePoseProcessor(
     private suspend fun processDecodedFrame(
         decodedFrame: DecodedVideoFrame,
         videoInfo: DecodedVideoInfo,
-        timestampMs: Long,
         landmarker: MediaPipePoseLandmarker,
         encoder: DebugVideoEncoder,
         performanceTracker: ProcessingPerformanceTracker?,
@@ -106,31 +100,44 @@ class DancePoseProcessor(
         onProgress: (ImportProgress) -> Unit
     ) {
         val frameIndex = decodedFrame.index
+        val timestampMs = decodedFrame.timestampMs
         val timestampUs = timestampMs * 1000L
-        val bitmap = decodedFrame.bitmap
 
-        try {
-            coroutineContext.ensureActive()
-            val landmarks = performanceTracker?.measureMediaPipe {
-                landmarker.detect(bitmap, timestampMs)
-            } ?: landmarker.detect(bitmap, timestampMs)
-            val normalized = if (landmarks.isNotEmpty()) {
-                performanceTracker?.measureNormalization {
-                    normalizer.normalize(landmarks).normalizedLandmarks
-                } ?: normalizer.normalize(landmarks).normalizedLandmarks
-            } else {
-                emptyList()
-            }
-            val jointAngles = if (normalized.isNotEmpty()) {
-                performanceTracker?.measureAngleCalculation {
-                    angleCalculator.calculate(normalized)
-                } ?: angleCalculator.calculate(normalized)
-            } else {
-                emptyMap()
-            }
-            if (landmarks.isNotEmpty()) onDetectedPose()
+        coroutineContext.ensureActive()
+        val landmarks = landmarker.detect(
+            rgbaBuffer = decodedFrame.rgbaBuffer,
+            width = decodedFrame.width,
+            height = decodedFrame.height,
+            timestampMs = timestampMs,
+            performanceTracker = performanceTracker
+        )
+        val normalized = if (landmarks.isNotEmpty()) {
+            performanceTracker?.measureNormalization {
+                normalizer.normalize(landmarks).normalizedLandmarks
+            } ?: normalizer.normalize(landmarks).normalizedLandmarks
+        } else {
+            emptyList()
+        }
+        val jointAngles = if (normalized.isNotEmpty()) {
+            performanceTracker?.measureAngleCalculation {
+                angleCalculator.calculate(normalized)
+            } ?: angleCalculator.calculate(normalized)
+        } else {
+            emptyMap()
+        }
+        if (landmarks.isNotEmpty()) onDetectedPose()
 
-            if (performanceTracker == null) {
+        if (performanceTracker == null) {
+            frames += MovesetFrame(
+                frame = frameIndex,
+                timestamp = (timestampMs / 1000.0).roundToSixDecimals(),
+                poseDetected = landmarks.isNotEmpty(),
+                landmarks = landmarks,
+                normalizedLandmarks = normalized,
+                jointAngles = jointAngles
+            )
+        } else {
+            performanceTracker.measureMovesetFrameBuild {
                 frames += MovesetFrame(
                     frame = frameIndex,
                     timestamp = (timestampMs / 1000.0).roundToSixDecimals(),
@@ -139,52 +146,26 @@ class DancePoseProcessor(
                     normalizedLandmarks = normalized,
                     jointAngles = jointAngles
                 )
-            } else {
-                performanceTracker.measureMovesetFrameBuild {
-                    frames += MovesetFrame(
-                        frame = frameIndex,
-                        timestamp = (timestampMs / 1000.0).roundToSixDecimals(),
-                        poseDetected = landmarks.isNotEmpty(),
-                        landmarks = landmarks,
-                        normalizedLandmarks = normalized,
-                        jointAngles = jointAngles
-                    )
-                }
             }
-
-            if (performanceTracker == null) {
-                val debugFrame = skeletonDrawer.draw(bitmap, landmarks, videoInfo.width, videoInfo.height)
-                try {
-                    encoder.encode(debugFrame, timestampUs)
-                } finally {
-                    debugFrame.recycle()
-                }
-            } else {
-                performanceTracker.measureDebugVideo {
-                    val debugFrame = skeletonDrawer.draw(bitmap, landmarks, videoInfo.width, videoInfo.height)
-                    try {
-                        performanceTracker.measureDebugEncoder {
-                            encoder.encode(debugFrame, timestampUs)
-                        }
-                    } finally {
-                        debugFrame.recycle()
-                    }
-                }
-            }
-
-            onProgress(
-                ImportProgress(
-                    message = "Detectando poses...",
-                    progress = 0.1f + 0.85f * ((frameIndex + 1).toFloat() / videoInfo.frameCount.toFloat())
-                )
-            )
-        } finally {
-            bitmap.recycle()
         }
-    }
 
-    private fun Long.toMonotonicMillisecondsAfter(previousTimestampMs: Long): Long {
-        val timestampMs = (this / 1000L).coerceAtLeast(0L)
-        return timestampMs.coerceAtLeast(previousTimestampMs + 1L)
+        if (performanceTracker == null) {
+            skeletonDrawer.draw(decodedFrame, landmarks)
+            encoder.encode(decodedFrame.rgbaBuffer, decodedFrame.rgbaStride, timestampUs)
+        } else {
+            performanceTracker.measureDebugVideo {
+                performanceTracker.measureSkeletonDraw {
+                    skeletonDrawer.draw(decodedFrame, landmarks)
+                }
+                encoder.encode(decodedFrame.rgbaBuffer, decodedFrame.rgbaStride, timestampUs, performanceTracker)
+            }
+        }
+
+        onProgress(
+            ImportProgress(
+                message = "Detectando poses...",
+                progress = 0.1f + 0.85f * ((frameIndex + 1).toFloat() / videoInfo.frameCount.toFloat())
+            )
+        )
     }
 }

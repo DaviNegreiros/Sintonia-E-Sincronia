@@ -1,11 +1,12 @@
 package com.sintonia.sincronia.processing
 
 import android.content.Context
-import android.graphics.Bitmap
-import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.ByteBufferImageBuilder
+import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
+import java.nio.ByteBuffer
 
 class MediaPipePoseLandmarker(context: Context) : AutoCloseable {
     private val landmarker: PoseLandmarker
@@ -22,9 +23,21 @@ class MediaPipePoseLandmarker(context: Context) : AutoCloseable {
         landmarker = PoseLandmarker.createFromOptions(context.applicationContext, options)
     }
 
-    fun detect(bitmap: Bitmap, timestampMs: Long): List<PoseLandmark> {
-        val image = BitmapImageBuilder(bitmap).build()
-        val result = landmarker.detectForVideo(image, timestampMs)
+    fun detect(
+        rgbaBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        timestampMs: Long,
+        performanceTracker: ProcessingPerformanceTracker? = null
+    ): List<PoseLandmark> {
+        rgbaBuffer.position(0)
+        rgbaBuffer.limit(rgbaBuffer.capacity())
+        val image = performanceTracker?.measureMpImageBuild {
+            ByteBufferImageBuilder(rgbaBuffer, width, height, MPImage.IMAGE_FORMAT_RGBA).build()
+        } ?: ByteBufferImageBuilder(rgbaBuffer, width, height, MPImage.IMAGE_FORMAT_RGBA).build()
+        val result = performanceTracker?.measureMediaPipe {
+            landmarker.detectForVideo(image, timestampMs)
+        } ?: landmarker.detectForVideo(image, timestampMs)
         val firstPose = result.landmarks().firstOrNull() ?: return emptyList()
         return firstPose.map { landmark ->
             PoseLandmark(
@@ -44,4 +57,3 @@ class MediaPipePoseLandmarker(context: Context) : AutoCloseable {
         const val MODEL_ASSET = "pose_landmarker_full.task"
     }
 }
-

@@ -20,14 +20,18 @@ data class ProcessingPerformanceReport(
     val decoderMs: Long,
     val decoderWaitReadMs: Long,
     val decoderGetOutputImageMs: Long,
-    val imageToBitmapMs: Long,
-    val bitmapTransformMs: Long,
+    val libyuvMs: Long,
+    val libyuvRotationMs: Long,
+    val libyuvResizeMs: Long,
+    val mpImageBuildMs: Long,
     val mediaPipeMs: Long,
     val normalizationMs: Long,
     val angleCalculationMs: Long,
     val movesetFrameBuildMs: Long,
     val movesetJsonWriteMs: Long,
     val debugVideoMs: Long,
+    val skeletonDrawMs: Long,
+    val rgbaToEncoderFormatMs: Long,
     val debugEncoderMs: Long
 ) {
     fun toDisplayText(): String = buildString {
@@ -47,14 +51,18 @@ data class ProcessingPerformanceReport(
         appendLine("Decoder total: ${decoderMs.formatDuration()}")
         appendLine("  wait/read codec: ${decoderWaitReadMs.formatDuration()}")
         appendLine("  getOutputImage: ${decoderGetOutputImageMs.formatDuration()}")
-        appendLine("  Image -> Bitmap: ${imageToBitmapMs.formatDuration()}")
-        appendLine("  rotação/resize: ${bitmapTransformMs.formatDuration()}")
+        appendLine("  libyuv YUV -> RGBA: ${libyuvMs.formatDuration()}")
+        appendLine("  libyuv rotação: ${libyuvRotationMs.formatDuration()}")
+        appendLine("  libyuv resize: ${libyuvResizeMs.formatDuration()}")
+        appendLine("MPImage build: ${mpImageBuildMs.formatDuration()}")
         appendLine("MediaPipe: ${mediaPipeMs.formatDuration()}")
         appendLine("Normalização: ${normalizationMs.formatDuration()}")
         appendLine("Ângulos: ${angleCalculationMs.formatDuration()}")
         appendLine("Frames JSON: ${movesetFrameBuildMs.formatDuration()}")
         appendLine("Escrita JSON: ${movesetJsonWriteMs.formatDuration()}")
         appendLine("Debug video: ${debugVideoMs.formatDuration()}")
+        appendLine("Skeleton draw: ${skeletonDrawMs.formatDuration()}")
+        appendLine("RGBA -> encoder: ${rgbaToEncoderFormatMs.formatDuration()}")
         appendLine("Encoder debug: ${debugEncoderMs.formatDuration()}")
     }
 }
@@ -64,14 +72,18 @@ class ProcessingPerformanceTracker {
     private var videoImportMs = 0L
     private var decoderWaitReadMs = 0L
     private var decoderGetOutputImageMs = 0L
-    private var imageToBitmapMs = 0L
-    private var bitmapTransformMs = 0L
+    private var libyuvMs = 0L
+    private var libyuvRotationMs = 0L
+    private var libyuvResizeMs = 0L
+    private var mpImageBuildMs = 0L
     private var mediaPipeMs = 0L
     private var normalizationMs = 0L
     private var angleCalculationMs = 0L
     private var movesetFrameBuildMs = 0L
     private var movesetJsonWriteMs = 0L
     private var debugVideoMs = 0L
+    private var skeletonDrawMs = 0L
+    private var rgbaToEncoderFormatMs = 0L
     private var debugEncoderMs = 0L
     private var totalProcessingMs = 0L
     private var durationSeconds = 0.0
@@ -132,11 +144,17 @@ class ProcessingPerformanceTracker {
     fun <T> measureVideoImport(block: () -> T): T =
         measure({ videoImportMs += it }, block)
 
-    fun <T> measureImageToBitmap(block: () -> T): T =
-        measure({ imageToBitmapMs += it }, block)
+    fun <T> measureLibyuv(block: () -> T): T =
+        measure({ libyuvMs += it }, block)
 
-    fun <T> measureBitmapTransform(block: () -> T): T =
-        measure({ bitmapTransformMs += it }, block)
+    fun <T> measureLibyuvRotation(block: () -> T): T =
+        measure({ libyuvRotationMs += it }, block)
+
+    fun <T> measureLibyuvResize(block: () -> T): T =
+        measure({ libyuvResizeMs += it }, block)
+
+    fun <T> measureMpImageBuild(block: () -> T): T =
+        measure({ mpImageBuildMs += it }, block)
 
     fun <T> measureMediaPipe(block: () -> T): T =
         measure({ mediaPipeMs += it }, block)
@@ -159,9 +177,15 @@ class ProcessingPerformanceTracker {
     fun <T> measureDebugVideo(block: () -> T): T =
         measure({ debugVideoMs += it }, block)
 
+    fun <T> measureSkeletonDraw(block: () -> T): T =
+        measure({ skeletonDrawMs += it }, block)
+
+    fun <T> measureRgbaToEncoderFormat(block: () -> T): T =
+        measure({ rgbaToEncoderFormatMs += it }, block)
+
     fun buildReport(): ProcessingPerformanceReport {
         val effectiveFps = if (durationSeconds > 0.0) processedFrames / durationSeconds else 0.0
-        val decoderMs = decoderWaitReadMs + decoderGetOutputImageMs + imageToBitmapMs + bitmapTransformMs
+        val decoderMs = decoderWaitReadMs + decoderGetOutputImageMs + libyuvMs + libyuvRotationMs + libyuvResizeMs
         return ProcessingPerformanceReport(
             durationSeconds = durationSeconds,
             width = width,
@@ -176,14 +200,18 @@ class ProcessingPerformanceTracker {
             decoderMs = decoderMs,
             decoderWaitReadMs = decoderWaitReadMs,
             decoderGetOutputImageMs = decoderGetOutputImageMs,
-            imageToBitmapMs = imageToBitmapMs,
-            bitmapTransformMs = bitmapTransformMs,
+            libyuvMs = libyuvMs,
+            libyuvRotationMs = libyuvRotationMs,
+            libyuvResizeMs = libyuvResizeMs,
+            mpImageBuildMs = mpImageBuildMs,
             mediaPipeMs = mediaPipeMs,
             normalizationMs = normalizationMs,
             angleCalculationMs = angleCalculationMs,
             movesetFrameBuildMs = movesetFrameBuildMs,
             movesetJsonWriteMs = movesetJsonWriteMs,
             debugVideoMs = debugVideoMs,
+            skeletonDrawMs = skeletonDrawMs,
+            rgbaToEncoderFormatMs = rgbaToEncoderFormatMs,
             debugEncoderMs = debugEncoderMs
         )
     }

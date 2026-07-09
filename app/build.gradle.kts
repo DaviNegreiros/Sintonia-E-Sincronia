@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "com.sintonia.sincronia"
     compileSdk = 35
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "com.sintonia.sincronia"
@@ -37,6 +38,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     androidResources {
