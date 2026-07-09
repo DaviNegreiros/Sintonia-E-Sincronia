@@ -2,6 +2,7 @@ package com.sintonia.sincronia.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.sintonia.sincronia.data.DanceRepository
 import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.domain.DanceResult
@@ -9,6 +10,7 @@ import com.sintonia.sincronia.domain.Rank
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class DanceLibraryUiState(
     val selectedDance: Dance? = null,
@@ -23,6 +25,21 @@ class DanceLibraryViewModel(
 
     private val _uiState = MutableStateFlow(DanceLibraryUiState())
     val uiState: StateFlow<DanceLibraryUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repository.dances.collect { dances ->
+                val current = _uiState.value
+                val selected = current.selectedDance ?: return@collect
+                val updated = dances.firstOrNull { it.id == selected.id }
+                _uiState.value = if (updated == null) {
+                    DanceLibraryUiState()
+                } else {
+                    current.copy(selectedDance = updated)
+                }
+            }
+        }
+    }
 
     fun selectDance(dance: Dance) {
         _uiState.value = DanceLibraryUiState(selectedDance = dance)

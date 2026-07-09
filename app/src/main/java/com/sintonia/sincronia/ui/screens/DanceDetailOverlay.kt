@@ -3,6 +3,7 @@ package com.sintonia.sincronia.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,9 +46,17 @@ fun DanceDetailOverlay(
     modifier: Modifier = Modifier
 ) {
     var playing by remember(dance.id) { mutableStateOf(false) }
+    var controlsVisible by remember(dance.id) { mutableStateOf(true) }
     var confirmDelete by remember(dance.id) { mutableStateOf(false) }
+    val overlayInteractionSource = remember { MutableInteractionSource() }
 
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier.clickable(
+            interactionSource = overlayInteractionSource,
+            indication = null,
+            onClick = {}
+        )
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -91,12 +100,34 @@ fun DanceDetailOverlay(
                     centerContent = {
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
-                                .background(Color(0xAA000000), androidx.compose.foundation.shape.CircleShape)
-                                .clickable { playing = !playing },
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    if (playing) {
+                                        controlsVisible = !controlsVisible
+                                    } else {
+                                        playing = true
+                                        controlsVisible = false
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (playing) "II" else "▶", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            if (!playing || controlsVisible) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .background(Color(0xAA000000), androidx.compose.foundation.shape.CircleShape)
+                                        .clickable {
+                                            playing = !playing
+                                            controlsVisible = !playing
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(if (playing) "II" else "▶", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                }
+                            }
                         }
                     }
                 )

@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -54,6 +57,8 @@ import com.sintonia.sincronia.components.BackButton
 import com.sintonia.sincronia.components.GlowButton
 import com.sintonia.sincronia.components.Hairline
 import com.sintonia.sincronia.domain.CropSelection
+import com.sintonia.sincronia.processing.ProcessingPerformanceConfig
+import com.sintonia.sincronia.processing.ProcessingPerformanceReport
 import com.sintonia.sincronia.ui.theme.SintoniaPrimary
 import com.sintonia.sincronia.ui.theme.SintoniaText
 import com.sintonia.sincronia.ui.theme.SintoniaTextMuted
@@ -70,10 +75,30 @@ fun CropVideoScreen(
     onImported: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    val performanceReport by viewModel.processingPerformanceReport.collectAsStateWithLifecycle()
     val sourceUri = uiState.sourceUri
+    val view = LocalView.current
+    var showPerformanceReport by remember { mutableStateOf(false) }
+    var handledImportId by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(uiState.importedDanceId) {
-        if (uiState.importedDanceId != null) {
+    fun finishImportFlow() {
+        showPerformanceReport = false
+        viewModel.reset()
+        onImported()
+    }
+
+    LaunchedEffect(uiState.importedDanceId, performanceReport) {
+        val importedDanceId = uiState.importedDanceId
+        if (importedDanceId != null && handledImportId != importedDanceId) {
+            if (ProcessingPerformanceConfig.SHOW_PROCESSING_REPORT && performanceReport == null) {
+                return@LaunchedEffect
+            }
+            handledImportId = importedDanceId
+            if (ProcessingPerformanceConfig.SHOW_PROCESSING_REPORT) {
+                showPerformanceReport = true
+                return@LaunchedEffect
+            }
             viewModel.reset()
             onImported()
         }
@@ -84,8 +109,23 @@ fun CropVideoScreen(
         return
     }
 
-    BackHandler(enabled = !uiState.isImporting) {
-        onCancel()
+    BackHandler {
+        if (uiState.isImporting) {
+            viewModel.cancelImport()
+        } else {
+            onCancel()
+        }
+    }
+
+    DisposableEffect(uiState.isImporting) {
+        if (uiState.isImporting) {
+            view.keepScreenOn = true
+        }
+        onDispose {
+            if (uiState.isImporting) {
+                view.keepScreenOn = false
+            }
+        }
     }
 
     val context = LocalContext.current
@@ -101,6 +141,15 @@ fun CropVideoScreen(
 
     DisposableEffect(player) {
         onDispose { player.release() }
+    }
+
+    LaunchedEffect(player, uiState.isImporting) {
+        if (uiState.isImporting) {
+            player.pause()
+            player.seekTo(0L)
+        } else {
+            player.play()
+        }
     }
 
     var stageSize by remember { mutableStateOf(IntSize.Zero) }
@@ -126,7 +175,7 @@ fun CropVideoScreen(
             .fillMaxSize()
             .background(Color(0xFF05000E))
     ) {
-        CropHeader(onCancel = onCancel)
+        CropHeader(onCancel = if (uiState.isImporting) viewModel::cancelImport else onCancel)
 
         Box(
             modifier = Modifier
@@ -173,6 +222,8 @@ fun CropVideoScreen(
             isImporting = uiState.isImporting,
             canConfirm = uiState.canConfirmCrop && videoRect.width > 0f,
             errorMessage = uiState.errorMessage,
+            progress = importProgress,
+            onCancelImport = viewModel::cancelImport,
             onConfirm = {
                 viewModel.clearError()
                 viewModel.importSelectedVideo(
@@ -186,6 +237,41 @@ fun CropVideoScreen(
             }
         )
     }
+
+    val visiblePerformanceReport = performanceReport
+    if (showPerformanceReport && visiblePerformanceReport != null) {
+        PerformanceReportDialog(
+            report = visiblePerformanceReport,
+            onDismiss = ::finishImportFlow
+        )
+    }
+}
+
+@Composable
+private fun PerformanceReportDialog(
+    report: ProcessingPerformanceReport,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF160730),
+        title = {
+            Text("Relatório de Performance", color = SintoniaText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Text(
+                text = report.toDisplayText(),
+                color = SintoniaTextMuted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
@@ -223,6 +309,8 @@ private fun CropFooter(
     isImporting: Boolean,
     canConfirm: Boolean,
     errorMessage: String?,
+    progress: com.sintonia.sincronia.processing.ImportProgress?,
+    onCancelImport: () -> Unit,
     onConfirm: () -> Unit
 ) {
     Column(
@@ -242,17 +330,39 @@ private fun CropFooter(
                 textAlign = TextAlign.Center
             )
         }
-        GlowButton(
-            label = if (isImporting) "Importando" else "Confirmar",
-            enabled = canConfirm,
-            onClick = onConfirm,
-            modifier = Modifier.width(210.dp)
-        )
         if (isImporting) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
+            Text(
+                text = progress?.message ?: "Preparando dança...",
+                color = SintoniaText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            LinearProgressIndicator(
+                progress = { progress?.progress?.coerceIn(0f, 1f) ?: 0f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(7.dp),
                 color = SintoniaPrimary,
-                strokeWidth = 2.dp
+                trackColor = Color(0x337C3AED)
+            )
+            Text(
+                text = "${progress?.percent ?: 0}%",
+                color = SintoniaTextMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            GlowButton(
+                label = "Cancelar",
+                destructive = true,
+                onClick = onCancelImport,
+                modifier = Modifier.width(210.dp)
+            )
+        } else {
+            GlowButton(
+                label = "Confirmar",
+                enabled = canConfirm,
+                onClick = onConfirm,
+                modifier = Modifier.width(210.dp)
             )
         }
     }

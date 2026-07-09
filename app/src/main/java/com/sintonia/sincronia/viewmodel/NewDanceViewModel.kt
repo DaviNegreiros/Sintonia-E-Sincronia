@@ -8,6 +8,8 @@ import com.sintonia.sincronia.data.DuplicateDanceNameException
 import com.sintonia.sincronia.data.DanceRepository
 import com.sintonia.sincronia.domain.CropSelection
 import com.sintonia.sincronia.domain.VideoInfo
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +35,9 @@ class NewDanceViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(NewDanceUiState())
     val uiState: StateFlow<NewDanceUiState> = _uiState.asStateFlow()
+    val importProgress = repository.importProgress
+    val processingPerformanceReport = repository.processingPerformanceReport
+    private var importJob: Job? = null
 
     fun updateName(name: String) {
         _uiState.update {
@@ -75,7 +80,7 @@ class NewDanceViewModel(
         }
 
         _uiState.update { it.copy(isImporting = true, errorMessage = null) }
-        viewModelScope.launch {
+        importJob = viewModelScope.launch {
             repository.importDance(
                 title = currentState.name,
                 sourceUri = uri,
@@ -85,6 +90,10 @@ class NewDanceViewModel(
                     it.copy(isImporting = false, importedDanceId = dance.id)
                 }
             }.onFailure { error ->
+                if (error is CancellationException) {
+                    _uiState.update { it.copy(isImporting = false, errorMessage = null) }
+                    return@onFailure
+                }
                 _uiState.update {
                     it.copy(
                         isImporting = false,
@@ -100,6 +109,12 @@ class NewDanceViewModel(
         }
     }
 
+    fun cancelImport() {
+        importJob?.cancel()
+        importJob = null
+        _uiState.update { it.copy(isImporting = false, errorMessage = null) }
+    }
+
     fun clearImportResult() {
         _uiState.update { it.copy(importedDanceId = null) }
     }
@@ -110,6 +125,12 @@ class NewDanceViewModel(
 
     fun reset() {
         _uiState.value = NewDanceUiState()
+    }
+
+    override fun onCleared() {
+        importJob?.cancel()
+        importJob = null
+        super.onCleared()
     }
 
     private companion object {

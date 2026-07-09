@@ -32,14 +32,18 @@ import com.sintonia.sincronia.viewmodel.DanceLibraryViewModel
 import com.sintonia.sincronia.viewmodel.DanceLibraryViewModelFactory
 import com.sintonia.sincronia.viewmodel.NewDanceViewModel
 import com.sintonia.sincronia.viewmodel.NewDanceViewModelFactory
+import com.sintonia.sincronia.viewmodel.SettingsViewModel
+import com.sintonia.sincronia.viewmodel.SettingsViewModelFactory
 
 @Composable
 fun SintoniaSincroniaApp() {
     val navController = rememberNavController()
     val context = LocalContext.current
     val repository = remember(context) { AppContainer.danceRepository(context) }
+    val settingsRepository = remember(context) { AppContainer.appSettingsRepository(context) }
     val factory = remember(repository) { DanceLibraryViewModelFactory(repository) }
     val newDanceFactory = remember(repository) { NewDanceViewModelFactory(repository) }
+    val settingsFactory = remember(settingsRepository) { SettingsViewModelFactory(settingsRepository) }
     val owner = LocalContext.current as androidx.lifecycle.ViewModelStoreOwner
     val libraryViewModel: DanceLibraryViewModel = viewModel(
         viewModelStoreOwner = owner,
@@ -48,6 +52,10 @@ fun SintoniaSincroniaApp() {
     val newDanceViewModel: NewDanceViewModel = viewModel(
         viewModelStoreOwner = owner,
         factory = newDanceFactory
+    )
+    val settingsViewModel: SettingsViewModel = viewModel(
+        viewModelStoreOwner = owner,
+        factory = settingsFactory
     )
 
     Box(
@@ -73,7 +81,8 @@ fun SintoniaSincroniaApp() {
             composable(AppRoute.Home.route) {
                 HomeScreen(
                     onNewDance = { navController.navigate(AppRoute.NewDance.route) },
-                    onLibrary = { navController.navigate(AppRoute.Library.route) }
+                    onLibrary = { navController.navigate(AppRoute.Library.route) },
+                    settingsViewModel = settingsViewModel
                 )
             }
 
@@ -110,9 +119,11 @@ fun SintoniaSincroniaApp() {
 
             composable(AppRoute.Game.route) {
                 val uiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+                val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
                 uiState.selectedDance?.let { dance ->
                     DancingOverlay(
                         dance = dance,
+                        countdownSeconds = settings.countdownSeconds,
                         onClose = {
                             libraryViewModel.cancelDancing()
                             navController.popBackStack(AppRoute.Library.route, inclusive = false)
@@ -124,7 +135,8 @@ fun SintoniaSincroniaApp() {
                     )
                 } ?: HomeScreen(
                     onNewDance = { navController.navigate(AppRoute.NewDance.route) },
-                    onLibrary = { navController.navigate(AppRoute.Library.route) }
+                    onLibrary = { navController.navigate(AppRoute.Library.route) },
+                    settingsViewModel = settingsViewModel
                 )
             }
         }

@@ -21,26 +21,50 @@ import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.domain.DanceMetadata
 import com.sintonia.sincronia.domain.Rank
 import com.sintonia.sincronia.domain.VideoInfo
+import com.sintonia.sincronia.processing.DancePoseProcessor
+import com.sintonia.sincronia.processing.ImportProgress
+import com.sintonia.sincronia.processing.ProcessingPerformanceConfig
+import com.sintonia.sincronia.processing.ProcessingPerformanceReport
+import com.sintonia.sincronia.processing.ProcessingPerformanceTracker
+import com.sintonia.sincronia.settings.AppSettingsRepository
 import java.io.File
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-class LocalDanceRepository(context: Context) : DanceRepository {
+class LocalDanceRepository(
+    context: Context,
+    private val settingsRepository: AppSettingsRepository
+) : DanceRepository {
     private val appContext = context.applicationContext
     private val dancesDir = File(appContext.filesDir, "dances")
+    private val poseProcessor = DancePoseProcessor(appContext)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _dances = MutableStateFlow<List<Dance>>(emptyList())
+    private val _importProgress = MutableStateFlow<ImportProgress?>(null)
+    private val _processingPerformanceReport = MutableStateFlow<ProcessingPerformanceReport?>(null)
 
     override val dances: StateFlow<List<Dance>> = _dances.asStateFlow()
+    override val importProgress: StateFlow<ImportProgress?> = _importProgress.asStateFlow()
+    override val processingPerformanceReport: StateFlow<ProcessingPerformanceReport?> =
+        _processingPerformanceReport.asStateFlow()
 
     init {
         refresh()
+        scope.launch {
+            settingsRepository.settings.collect {
+                refresh()
+            }
+        }
     }
 
     override suspend fun importDance(
@@ -54,38 +78,74 @@ class LocalDanceRepository(context: Context) : DanceRepository {
         val danceId = nextDanceId()
         val danceFolder = File(dancesDir, danceId)
         val videoFile = File(danceFolder, VIDEO_FILE_NAME)
+        val debugVideoFile = File(danceFolder, DEBUG_VIDEO_FILE_NAME)
+        val movesetFile = File(danceFolder, MOVESET_FILE_NAME)
         val metadataFile = File(danceFolder, METADATA_FILE_NAME)
+        val importMarkerFile = File(danceFolder, IMPORT_MARKER_FILE_NAME)
 
         withContext(Dispatchers.IO) {
             danceFolder.mkdirs()
+            importMarkerFile.writeText(System.currentTimeMillis().toString())
             if (videoFile.exists()) videoFile.delete()
+            if (debugVideoFile.exists()) debugVideoFile.delete()
+            if (movesetFile.exists()) movesetFile.delete()
         }
 
         try {
+            _processingPerformanceReport.value = null
+            val performanceTracker = if (ProcessingPerformanceConfig.SHOW_PROCESSING_REPORT) {
+                ProcessingPerformanceTracker().also { it.startTotal() }
+            } else {
+                null
+            }
+            _importProgress.value = ImportProgress("Preparando dança...", 0.03f)
+            val transformStartedAt = ProcessingPerformanceTracker.now()
             transformVideo(sourceUri, videoFile, cropSelection)
+            performanceTracker?.let {
+                it.addVideoImportTime(ProcessingPerformanceTracker.elapsedSince(transformStartedAt))
+            }
+            _importProgress.value = ImportProgress("Detectando poses...", 0.1f)
+            poseProcessor.process(
+                videoFile = videoFile,
+                debugVideoFile = debugVideoFile,
+                movesetFile = movesetFile,
+                performanceTracker = performanceTracker,
+                onProgress = { progress -> _importProgress.value = progress }
+            )
             val metadata = DanceMetadata(
                 id = danceId,
                 title = cleanTitle,
                 video = VIDEO_FILE_NAME,
+                debugVideo = DEBUG_VIDEO_FILE_NAME,
                 preview = null,
-                moveset = null,
+                moveset = MOVESET_FILE_NAME,
                 bestRank = null
             )
             withContext(Dispatchers.IO) {
                 metadataFile.writeText(metadata.toJson().toString(2))
+                importMarkerFile.delete()
             }
             refresh()
+            _importProgress.value = null
+            performanceTracker?.let {
+                it.finishTotal()
+                _processingPerformanceReport.value = it.buildReport()
+            }
             requireNotNull(_dances.value.firstOrNull { it.id == danceId })
         } catch (error: Throwable) {
             withContext(Dispatchers.IO) {
+                movesetFile.delete()
+                debugVideoFile.delete()
                 danceFolder.deleteRecursively()
             }
+            _importProgress.value = null
             throw error
         }
     }
 
     override fun refresh() {
         dancesDir.mkdirs()
+        cleanupInterruptedImports()
         _dances.value = dancesDir
             .listFiles()
             ?.filter { it.isDirectory }
@@ -110,8 +170,11 @@ class LocalDanceRepository(context: Context) : DanceRepository {
             JSONObject(metadataFile.readText()).toDanceMetadata()
         }.getOrNull() ?: return null
 
-        val videoFile = File(this, metadata.video)
-        if (!videoFile.exists()) return null
+        val originalVideoFile = File(this, metadata.video)
+        if (!originalVideoFile.exists()) return null
+        val debugVideoFile = metadata.debugVideo?.let { File(this, it) }?.takeIf { it.exists() }
+        val shouldUseDebugVideo = settingsRepository.settings.value.showSkeleton && debugVideoFile != null
+        val videoFile = if (shouldUseDebugVideo) debugVideoFile else originalVideoFile
         val previewFile = metadata.preview?.let { File(this, it) }?.takeIf { it.exists() }
 
         val colors = colorsFor(metadata.id)
@@ -119,7 +182,11 @@ class LocalDanceRepository(context: Context) : DanceRepository {
             metadata = metadata,
             folder = this,
             videoFile = videoFile,
+            originalVideoFile = originalVideoFile,
+            debugVideoFile = debugVideoFile,
             videoUri = Uri.fromFile(videoFile),
+            originalVideoUri = Uri.fromFile(originalVideoFile),
+            debugVideoUri = debugVideoFile?.let { Uri.fromFile(it) },
             previewUri = previewFile?.let { Uri.fromFile(it) },
             accentColor = colors.accent,
             gradientStart = colors.start,
@@ -138,6 +205,13 @@ class LocalDanceRepository(context: Context) : DanceRepository {
             ?.plus(1)
             ?: 1
         return "dance_${nextNumber.toString().padStart(3, '0')}"
+    }
+
+    private fun cleanupInterruptedImports() {
+        dancesDir
+            .listFiles()
+            ?.filter { folder -> folder.isDirectory && File(folder, IMPORT_MARKER_FILE_NAME).exists() }
+            ?.forEach { folder -> folder.deleteRecursively() }
     }
 
     @OptIn(UnstableApi::class)
@@ -215,6 +289,7 @@ class LocalDanceRepository(context: Context) : DanceRepository {
         .put("id", id)
         .put("title", title)
         .put("video", video)
+        .put("debugVideo", debugVideo ?: JSONObject.NULL)
         .put("preview", preview ?: JSONObject.NULL)
         .put("moveset", moveset ?: JSONObject.NULL)
         .put("bestRank", bestRank?.name ?: JSONObject.NULL)
@@ -223,6 +298,7 @@ class LocalDanceRepository(context: Context) : DanceRepository {
         id = getString("id"),
         title = getString("title"),
         video = getString("video"),
+        debugVideo = optNullableString("debugVideo"),
         preview = optNullableString("preview"),
         moveset = optNullableString("moveset"),
         bestRank = optNullableString("bestRank")?.let { value ->
@@ -286,6 +362,9 @@ class LocalDanceRepository(context: Context) : DanceRepository {
     private companion object {
         const val METADATA_FILE_NAME = "metadata.json"
         const val VIDEO_FILE_NAME = "dance.mp4"
+        const val DEBUG_VIDEO_FILE_NAME = "dance_debug.mp4"
+        const val MOVESET_FILE_NAME = "moveset.json"
+        const val IMPORT_MARKER_FILE_NAME = ".importing"
         const val DEFAULT_VIDEO_WIDTH = 1080
         const val DEFAULT_VIDEO_HEIGHT = 1920
         const val OUTPUT_WIDTH = 720

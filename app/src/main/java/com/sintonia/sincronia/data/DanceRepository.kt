@@ -4,10 +4,14 @@ import android.net.Uri
 import com.sintonia.sincronia.domain.CropSelection
 import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.domain.VideoInfo
+import com.sintonia.sincronia.processing.ImportProgress
+import com.sintonia.sincronia.processing.ProcessingPerformanceReport
 import kotlinx.coroutines.flow.StateFlow
 
 interface DanceRepository {
     val dances: StateFlow<List<Dance>>
+    val importProgress: StateFlow<ImportProgress?>
+    val processingPerformanceReport: StateFlow<ProcessingPerformanceReport?>
 
     suspend fun importDance(
         title: String,

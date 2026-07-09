@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,21 +31,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sintonia.sincronia.components.Hairline
 import com.sintonia.sincronia.components.PillButton
 import com.sintonia.sincronia.components.SintoniaLogo
+import com.sintonia.sincronia.settings.AppSettings
 import com.sintonia.sincronia.ui.theme.SintoniaPrimary
 import com.sintonia.sincronia.ui.theme.SintoniaText
 import com.sintonia.sincronia.ui.theme.SintoniaTextMuted
+import com.sintonia.sincronia.viewmodel.SettingsViewModel
 
 @Composable
 fun HomeScreen(
     onNewDance: () -> Unit,
-    onLibrary: () -> Unit
+    onLibrary: () -> Unit,
+    settingsViewModel: SettingsViewModel
 ) {
     var showTips by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 18.dp, top = 18.dp)
+                .size(34.dp)
+                .background(Color(0x177C3AED), CircleShape)
+                .clickable { showSettings = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("⚙", color = SintoniaTextMuted, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -95,6 +114,14 @@ fun HomeScreen(
 
         if (showTips) {
             InfoDialog(onDismiss = { showTips = false })
+        }
+        if (showSettings) {
+            SettingsDialog(
+                settings = settings,
+                onShowSkeletonChange = settingsViewModel::setShowSkeleton,
+                onCountdownChange = settingsViewModel::setCountdownSeconds,
+                onDismiss = { showSettings = false }
+            )
         }
     }
 }
@@ -149,6 +176,71 @@ private fun InfoDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Entendi", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun SettingsDialog(
+    settings: AppSettings,
+    onShowSkeletonChange: (Boolean) -> Unit,
+    onCountdownChange: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF160730),
+        title = {
+            Text("Configurações", color = SintoniaText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onShowSkeletonChange(!settings.showSkeleton) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Mostrar esqueleto", color = SintoniaText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Checkbox(
+                        checked = settings.showSkeleton,
+                        onCheckedChange = onShowSkeletonChange
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Contagem regressiva", color = SintoniaText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppSettings.allowedCountdownSeconds.sorted().forEach { seconds ->
+                            val selected = settings.countdownSeconds == seconds
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (selected) SintoniaPrimary.copy(alpha = 0.95f) else Color(0x227C3AED),
+                                        CircleShape
+                                    )
+                                    .clickable { onCountdownChange(seconds) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "$seconds",
+                                    color = if (selected) Color.White else SintoniaTextMuted,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
             }
         }
     )

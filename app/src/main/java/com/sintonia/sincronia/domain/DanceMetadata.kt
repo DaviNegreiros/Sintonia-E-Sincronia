@@ -4,6 +4,7 @@ data class DanceMetadata(
     val id: String,
     val title: String,
     val video: String,
+    val debugVideo: String?,
     val preview: String?,
     val moveset: String?,
     val bestRank: Rank?

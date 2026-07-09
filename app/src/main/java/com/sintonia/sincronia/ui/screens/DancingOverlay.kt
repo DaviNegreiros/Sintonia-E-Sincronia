@@ -56,10 +56,12 @@ private enum class DancePhase {
 @Composable
 fun DancingOverlay(
     dance: Dance,
+    countdownSeconds: Int,
     onClose: () -> Unit,
     onFinished: () -> Unit
 ) {
-    var count by remember(dance.id) { mutableIntStateOf(10) }
+    val safeCountdown = if (countdownSeconds in setOf(3, 5, 10)) countdownSeconds else 10
+    var count by remember(dance.id, safeCountdown) { mutableIntStateOf(safeCountdown) }
     var phase by remember(dance.id) { mutableStateOf(DancePhase.Countdown) }
     var cameraOffsetX by remember(dance.id) { mutableFloatStateOf(0f) }
     var cameraOffsetY by remember(dance.id) { mutableFloatStateOf(0f) }
@@ -131,7 +133,7 @@ fun DancingOverlay(
         }
 
         when (phase) {
-            DancePhase.Countdown -> CountdownPhase(count = count, accent = accent)
+            DancePhase.Countdown -> CountdownPhase(count = count, total = safeCountdown, accent = accent)
             DancePhase.Go -> Text(
                 "VAI!",
                 color = accent,
@@ -168,7 +170,7 @@ fun DancingOverlay(
 }
 
 @Composable
-private fun CountdownPhase(count: Int, accent: Color) {
+private fun CountdownPhase(count: Int, total: Int, accent: Color) {
     Box(modifier = Modifier.padding(top = 56.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(156.dp)) {
             val radius = size.minDimension / 2f - 10f
@@ -182,7 +184,7 @@ private fun CountdownPhase(count: Int, accent: Color) {
             drawArc(
                 color = accent,
                 startAngle = -90f,
-                sweepAngle = 360f * (count / 10f),
+                sweepAngle = 360f * (count / total.toFloat()),
                 useCenter = false,
                 style = stroke
             )
