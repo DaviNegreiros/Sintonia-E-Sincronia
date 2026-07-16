@@ -124,6 +124,7 @@ fun SintoniaSincroniaApp() {
                     DancingOverlay(
                         dance = dance,
                         countdownSeconds = settings.countdownSeconds,
+                        showSkeleton = settings.showSkeleton,
                         onClose = {
                             libraryViewModel.cancelDancing()
                             navController.popBackStack(AppRoute.Library.route, inclusive = false)

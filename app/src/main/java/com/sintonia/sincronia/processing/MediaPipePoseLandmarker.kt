@@ -13,12 +13,16 @@ class MediaPipePoseLandmarker(context: Context) : AutoCloseable {
 
     init {
         val baseOptions = BaseOptions.builder()
-            .setModelAssetPath(MODEL_ASSET)
+            .setModelAssetPath(PoseLandmarkerConfig.MODEL_ASSET)
             .build()
         val options = PoseLandmarker.PoseLandmarkerOptions.builder()
             .setBaseOptions(baseOptions)
             .setRunningMode(RunningMode.VIDEO)
-            .setNumPoses(1)
+            .setNumPoses(PoseLandmarkerConfig.NUM_POSES)
+            .setMinPoseDetectionConfidence(PoseLandmarkerConfig.MIN_POSE_DETECTION_CONFIDENCE)
+            .setMinPosePresenceConfidence(PoseLandmarkerConfig.MIN_POSE_PRESENCE_CONFIDENCE)
+            .setMinTrackingConfidence(PoseLandmarkerConfig.MIN_TRACKING_CONFIDENCE)
+            .setOutputSegmentationMasks(false)
             .build()
         landmarker = PoseLandmarker.createFromOptions(context.applicationContext, options)
     }
@@ -53,7 +57,12 @@ class MediaPipePoseLandmarker(context: Context) : AutoCloseable {
         landmarker.close()
     }
 
-    private companion object {
-        const val MODEL_ASSET = "pose_landmarker_full.task"
-    }
+}
+
+internal object PoseLandmarkerConfig {
+    const val MODEL_ASSET = "pose_landmarker_full.task"
+    const val NUM_POSES = 1
+    const val MIN_POSE_DETECTION_CONFIDENCE = 0.5f
+    const val MIN_POSE_PRESENCE_CONFIDENCE = 0.5f
+    const val MIN_TRACKING_CONFIDENCE = 0.5f
 }
