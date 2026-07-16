@@ -3,7 +3,7 @@ package com.sintonia.sincronia.processing
 import kotlin.math.roundToInt
 
 object ProcessingPerformanceConfig {
-    const val SHOW_PROCESSING_REPORT = true
+    const val SHOW_PROCESSING_REPORT = false
 }
 
 data class ProcessingPerformanceReport(

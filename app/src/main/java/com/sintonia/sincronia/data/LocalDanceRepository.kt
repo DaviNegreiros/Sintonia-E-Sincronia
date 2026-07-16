@@ -278,6 +278,24 @@ class LocalDanceRepository(
         return _dances.value.none { it.name == cleanTitle }
     }
 
+    override fun updateBestRank(id: String, rank: Rank) {
+        if (rank == Rank.UNKNOWN) return
+        val danceFolder = File(dancesDir, id)
+        val metadataFile = File(danceFolder, METADATA_FILE_NAME)
+        if (!metadataFile.exists()) return
+
+        val metadata = runCatching {
+            JSONObject(metadataFile.readText()).toDanceMetadata()
+        }.getOrNull() ?: return
+        val currentBestRank = metadata.bestRank
+        if (currentBestRank != null && currentBestRank != Rank.UNKNOWN && currentBestRank.quality >= rank.quality) {
+            return
+        }
+
+        metadataFile.writeText(metadata.copy(bestRank = rank).toJson().toString(2))
+        refresh()
+    }
+
     private fun ensureTitleIsAvailable(title: String) {
         refresh()
         if (!isDanceTitleAvailable(title)) {

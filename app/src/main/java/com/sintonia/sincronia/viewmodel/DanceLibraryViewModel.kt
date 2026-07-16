@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.sintonia.sincronia.data.DanceRepository
 import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.domain.DanceResult
-import com.sintonia.sincronia.domain.Rank
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,12 +58,13 @@ class DanceLibraryViewModel(
         _uiState.value = DanceLibraryUiState(selectedDance = selectedDance)
     }
 
-    fun finishDancingWithResult() {
+    fun finishDancingWithResult(result: DanceResult) {
         val selectedDance = _uiState.value.selectedDance ?: return
+        repository.updateBestRank(selectedDance.id, result.rank)
         _uiState.value = DanceLibraryUiState(
-            selectedDance = selectedDance,
+            selectedDance = repository.dances.value.firstOrNull { it.id == selectedDance.id } ?: selectedDance,
             isDancing = false,
-            result = TemporaryDanceResultProvider.createFor(selectedDance)
+            result = result
         )
     }
 
@@ -78,13 +78,6 @@ class DanceLibraryViewModel(
         closeOverlay()
     }
 
-    private object TemporaryDanceResultProvider {
-        fun createFor(dance: Dance): DanceResult = DanceResult(
-            danceName = dance.name,
-            rank = Rank.B,
-            successPercentage = 76
-        )
-    }
 }
 
 class DanceLibraryViewModelFactory(

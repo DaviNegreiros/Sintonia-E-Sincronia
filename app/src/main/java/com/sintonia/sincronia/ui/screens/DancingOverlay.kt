@@ -7,12 +7,19 @@ import android.view.Surface
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,19 +56,28 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.sintonia.sincronia.R
 import com.sintonia.sincronia.components.DanceVideoPlayer
 import com.sintonia.sincronia.domain.Dance
+import com.sintonia.sincronia.domain.DanceResult
+import com.sintonia.sincronia.domain.ScoreFeedback
+import com.sintonia.sincronia.processing.DanceScoringEngine
 import com.sintonia.sincronia.processing.PoseConnections
 import com.sintonia.sincronia.processing.PoseLandmark
 import com.sintonia.sincronia.processing.RealtimePoseLandmarker
@@ -83,7 +100,7 @@ fun DancingOverlay(
     countdownSeconds: Int,
     showSkeleton: Boolean,
     onClose: () -> Unit,
-    onFinished: () -> Unit
+    onFinished: (DanceResult) -> Unit
 ) {
     val safeCountdown = if (countdownSeconds in setOf(3, 5, 10)) countdownSeconds else 10
     var count by remember(dance.id, safeCountdown) { mutableIntStateOf(safeCountdown) }
@@ -93,9 +110,18 @@ fun DancingOverlay(
     var cameraStreamReady by remember(dance.id) { mutableStateOf(false) }
     var goMinimumElapsed by remember(dance.id) { mutableStateOf(false) }
     var livePoseResult by remember(dance.id) { mutableStateOf<RealtimePoseResult?>(null) }
+    var gameplayPoseStartTimestampMs by remember(dance.id) { mutableStateOf<Long?>(null) }
+    var feedbackEvent by remember(dance.id) { mutableStateOf<FeedbackImageEvent?>(null) }
+    var feedbackSequence by remember(dance.id) { mutableIntStateOf(0) }
+    var finishedDispatched by remember(dance.id) { mutableStateOf(false) }
+    val scoringEngine = remember(dance.id) { DanceScoringEngine.forDance(dance) }
     val accent = Color(dance.accentColor)
     val context = LocalContext.current
+    val feedbackHeight = with(LocalDensity.current) { FEEDBACK_IMAGE_HEIGHT_PX.toDp() }
     val view = LocalView.current
+    var rootSize by remember { mutableStateOf(IntSize.Zero) }
+    var feedbackImageSize by remember { mutableStateOf(IntSize.Zero) }
+    var feedbackPosition by remember(context) { mutableStateOf(context.readFeedbackPosition()) }
     var hasCameraPermission by remember { mutableStateOf(context.hasCameraPermission()) }
     var lensFacing by remember { mutableIntStateOf(context.readPreferredCameraLens()) }
     var availableLensFacings by remember { mutableStateOf(emptySet<Int>()) }
@@ -143,6 +169,10 @@ fun DancingOverlay(
     LaunchedEffect(dance.id, lensFacing, hasCameraPermission) {
         cameraStreamReady = false
         livePoseResult = null
+        gameplayPoseStartTimestampMs = null
+        feedbackEvent = null
+        feedbackSequence = 0
+        finishedDispatched = false
     }
 
     LaunchedEffect(showSkeleton) {
@@ -168,6 +198,7 @@ fun DancingOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { rootSize = it }
             .background(Color(0xFA04000E)),
         contentAlignment = Alignment.Center
     ) {
@@ -177,7 +208,12 @@ fun DancingOverlay(
                 playWhenReady = true,
                 muted = false,
                 loop = false,
-                onEnded = onFinished,
+                onEnded = {
+                    if (!finishedDispatched) {
+                        finishedDispatched = true
+                        onFinished(scoringEngine.finalResult())
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -193,6 +229,24 @@ fun DancingOverlay(
             onPoseResult = { result ->
                 if (showSkeleton) {
                     livePoseResult = result
+                }
+                if (phase == DancePhase.Playing && !finishedDispatched) {
+                    val startTimestamp = gameplayPoseStartTimestampMs ?: result.timestampMs.also {
+                        gameplayPoseStartTimestampMs = it
+                    }
+                    val playbackTimestampMs = (result.timestampMs - startTimestamp).coerceAtLeast(0L).toDouble()
+                    val scoreUpdate = scoringEngine.compare(
+                        playbackTimestampMs = playbackTimestampMs,
+                        landmarks = result.landmarks
+                    )
+                    val emittedFeedback = scoreUpdate.emittedFeedback
+                    if (emittedFeedback != null) {
+                        feedbackEvent = FeedbackImageEvent(
+                            id = feedbackSequence,
+                            feedback = emittedFeedback
+                        )
+                        feedbackSequence += 1
+                    }
                 }
             },
             modifier = if (phase == DancePhase.Playing) {
@@ -211,6 +265,18 @@ fun DancingOverlay(
                 Modifier.fillMaxSize()
             }
         )
+
+        if (phase == DancePhase.Countdown) {
+            FeedbackPlacementPlaceholder(
+                position = feedbackPosition,
+                containerSize = rootSize,
+                imageSize = feedbackImageSize,
+                imageHeight = feedbackHeight,
+                onImageSizeChanged = { feedbackImageSize = it },
+                onPositionChanged = { feedbackPosition = it },
+                onPositionSelected = { context.saveFeedbackPosition(it) }
+            )
+        }
 
         CameraFlipButton(
             onClick = {
@@ -258,6 +324,22 @@ fun DancingOverlay(
                         .padding(bottom = 30.dp)
                 )
             }
+        }
+
+        feedbackEvent?.let { event ->
+            FeedbackImage(
+                event = event,
+                position = feedbackPosition,
+                containerSize = rootSize,
+                imageSize = feedbackImageSize,
+                imageHeight = feedbackHeight,
+                onImageSizeChanged = { feedbackImageSize = it },
+                onFinished = {
+                    if (feedbackEvent?.id == event.id) {
+                        feedbackEvent = null
+                    }
+                }
+            )
         }
     }
 }
@@ -333,7 +415,7 @@ private fun AdaptiveCameraPreview(
             onPoseResult = onPoseResult,
             modifier = Modifier.fillMaxSize()
         )
-        if (compact && showSkeleton && poseResult != null) {
+        if (showSkeleton && poseResult != null) {
             PoseLandmarksOverlay(
                 poseResult = poseResult,
                 mirrorHorizontally = mirrorLandmarksHorizontally,
@@ -377,6 +459,160 @@ private fun CameraPreviewSurface(
         }
     }
 }
+
+private data class FeedbackImageEvent(
+    val id: Int,
+    val feedback: ScoreFeedback
+)
+
+private data class FeedbackPosition(
+    val xFraction: Float,
+    val yFraction: Float
+)
+
+@Composable
+private fun FeedbackImage(
+    event: FeedbackImageEvent,
+    position: FeedbackPosition,
+    containerSize: IntSize,
+    imageSize: IntSize,
+    imageHeight: Dp,
+    onImageSizeChanged: (IntSize) -> Unit,
+    onFinished: () -> Unit
+) {
+    var visible by remember(event.id) { mutableStateOf(true) }
+
+    LaunchedEffect(event.id) {
+        delay(FEEDBACK_VISIBLE_MS)
+        visible = false
+        delay(FEEDBACK_FADE_OUT_MS)
+        onFinished()
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopStart
+    ) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(animationSpec = tween(90)) + scaleIn(
+                initialScale = 0.62f,
+                animationSpec = tween(170)
+            ),
+            exit = fadeOut(animationSpec = tween(FEEDBACK_FADE_OUT_MS.toInt())) + scaleOut(
+                targetScale = 0.94f,
+                animationSpec = tween(FEEDBACK_FADE_OUT_MS.toInt())
+            ),
+            modifier = Modifier.offset { position.toIntOffset(containerSize, imageSize) }
+        ) {
+            Image(
+                painter = painterResource(id = event.feedback.drawableResId()),
+                contentDescription = null,
+                modifier = Modifier
+                    .height(imageHeight)
+                    .onSizeChanged(onImageSizeChanged)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedbackPlacementPlaceholder(
+    position: FeedbackPosition,
+    containerSize: IntSize,
+    imageSize: IntSize,
+    imageHeight: Dp,
+    onImageSizeChanged: (IntSize) -> Unit,
+    onPositionChanged: (FeedbackPosition) -> Unit,
+    onPositionSelected: (FeedbackPosition) -> Unit
+) {
+    val currentPosition by rememberUpdatedState(position)
+    val currentOnPositionChanged by rememberUpdatedState(onPositionChanged)
+    val currentOnPositionSelected by rememberUpdatedState(onPositionSelected)
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopStart
+    ) {
+        Image(
+            painter = painterResource(id = ScoreFeedback.SS.drawableResId()),
+            contentDescription = null,
+            modifier = Modifier
+                .offset { position.toIntOffset(containerSize, imageSize) }
+                .height(imageHeight)
+                .onSizeChanged(onImageSizeChanged)
+                .pointerInput(containerSize, imageSize) {
+                    detectDragGestures(
+                        onDragEnd = { currentOnPositionSelected(currentPosition) },
+                        onDragCancel = { currentOnPositionSelected(currentPosition) }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        currentOnPositionChanged(
+                            currentPosition.moveBy(
+                                dragAmount = dragAmount,
+                                containerSize = containerSize,
+                                imageSize = imageSize
+                            )
+                        )
+                    }
+                }
+        )
+    }
+}
+
+private fun ScoreFeedback.drawableResId(): Int =
+    when (this) {
+        ScoreFeedback.X -> R.drawable.ss_x
+        ScoreFeedback.OK -> R.drawable.ss_ok
+        ScoreFeedback.OTIMO -> R.drawable.ss_otimo
+        ScoreFeedback.SS -> R.drawable.ss_ss
+    }
+
+private fun FeedbackPosition.toIntOffset(containerSize: IntSize, imageSize: IntSize): IntOffset {
+    val maxX = max(containerSize.width - imageSize.width, 0)
+    val maxY = max(containerSize.height - imageSize.height, 0)
+    return IntOffset(
+        x = (xFraction.coerceIn(0f, 1f) * maxX).roundToInt(),
+        y = (yFraction.coerceIn(0f, 1f) * maxY).roundToInt()
+    )
+}
+
+private fun FeedbackPosition.moveBy(
+    dragAmount: Offset,
+    containerSize: IntSize,
+    imageSize: IntSize
+): FeedbackPosition {
+    val maxX = max(containerSize.width - imageSize.width, 0)
+    val maxY = max(containerSize.height - imageSize.height, 0)
+    val current = toIntOffset(containerSize, imageSize)
+    val nextX = (current.x + dragAmount.x).coerceIn(0f, maxX.toFloat())
+    val nextY = (current.y + dragAmount.y).coerceIn(0f, maxY.toFloat())
+    return FeedbackPosition(
+        xFraction = if (maxX > 0) nextX / maxX else 0f,
+        yFraction = if (maxY > 0) nextY / maxY else 0f
+    )
+}
+
+private fun Context.readFeedbackPosition(): FeedbackPosition {
+    val preferences = feedbackPreferences()
+    return FeedbackPosition(
+        xFraction = preferences.getFloat(KEY_FEEDBACK_X_FRACTION, DEFAULT_FEEDBACK_X_FRACTION)
+            .coerceIn(0f, 1f),
+        yFraction = preferences.getFloat(KEY_FEEDBACK_Y_FRACTION, DEFAULT_FEEDBACK_Y_FRACTION)
+            .coerceIn(0f, 1f)
+    )
+}
+
+private fun Context.saveFeedbackPosition(position: FeedbackPosition) {
+    feedbackPreferences()
+        .edit()
+        .putFloat(KEY_FEEDBACK_X_FRACTION, position.xFraction.coerceIn(0f, 1f))
+        .putFloat(KEY_FEEDBACK_Y_FRACTION, position.yFraction.coerceIn(0f, 1f))
+        .apply()
+}
+
+private fun Context.feedbackPreferences() =
+    applicationContext.getSharedPreferences(FEEDBACK_PREFERENCES_NAME, Context.MODE_PRIVATE)
 
 @Composable
 private fun CameraFlipButton(
@@ -539,6 +775,7 @@ private fun PoseLandmarksOverlay(
                 )
             }
         }
+
     }
 }
 
@@ -621,4 +858,12 @@ private fun preferredCameraFallback(availableLensFacings: Set<Int>): Int =
 
 private const val CAMERA_PREFERENCES_NAME = "sintonia_camera"
 private const val KEY_CAMERA_LENS_FACING = "camera_lens_facing"
+private const val FEEDBACK_PREFERENCES_NAME = "sintonia_feedback"
+private const val KEY_FEEDBACK_X_FRACTION = "feedback_x_fraction"
+private const val KEY_FEEDBACK_Y_FRACTION = "feedback_y_fraction"
+private const val DEFAULT_FEEDBACK_X_FRACTION = 0.5f
+private const val DEFAULT_FEEDBACK_Y_FRACTION = 0.72f
+private const val FEEDBACK_IMAGE_HEIGHT_PX = 200f
 private const val LANDMARK_VISIBILITY_THRESHOLD = 0.35f
+private const val FEEDBACK_VISIBLE_MS = 900L
+private const val FEEDBACK_FADE_OUT_MS = 650L

@@ -129,8 +129,8 @@ fun SintoniaSincroniaApp() {
                             libraryViewModel.cancelDancing()
                             navController.popBackStack(AppRoute.Library.route, inclusive = false)
                         },
-                        onFinished = {
-                            libraryViewModel.finishDancingWithResult()
+                        onFinished = { result ->
+                            libraryViewModel.finishDancingWithResult(result)
                             navController.popBackStack(AppRoute.Library.route, inclusive = false)
                         }
                     )
