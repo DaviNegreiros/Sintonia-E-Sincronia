@@ -38,7 +38,6 @@ private fun rankStyle(rank: Rank): RankStyle = when (rank) {
     Rank.A -> RankStyle(Color(0xFF86EFAC), Color(0x2E4ADE80), Color(0x804ADE80))
     Rank.B -> RankStyle(Color(0xFF93C5FD), Color(0x2E60A5FA), Color(0x8060A5FA))
     Rank.C -> RankStyle(Color(0xFFC4B5FD), Color(0x2EA78BFA), Color(0x80A78BFA))
-    Rank.D -> RankStyle(Color(0xFFFCA5A5), Color(0x26F87171), Color(0x73F87171))
-    Rank.E -> RankStyle(Color(0xFFF87171), Color(0x26EF4444), Color(0x73EF4444))
+    Rank.F -> RankStyle(Color(0xFFF87171), Color(0x26EF4444), Color(0x73EF4444))
     Rank.UNKNOWN -> RankStyle(Color(0xFF94A3B8), Color(0x1F94A3B8), Color(0x5994A3B8))
 }

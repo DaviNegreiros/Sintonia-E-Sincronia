@@ -6,7 +6,6 @@ enum class Rank(val label: String, val quality: Int) {
     A("A", 5),
     B("B", 4),
     C("C", 3),
-    D("D", 2),
-    E("E", 1),
+    F("F", 1),
     UNKNOWN("?", 0)
 }

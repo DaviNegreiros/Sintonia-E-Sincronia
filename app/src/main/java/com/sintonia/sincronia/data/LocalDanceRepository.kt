@@ -320,7 +320,11 @@ class LocalDanceRepository(
         preview = optNullableString("preview"),
         moveset = optNullableString("moveset"),
         bestRank = optNullableString("bestRank")?.let { value ->
-            runCatching { Rank.valueOf(value) }.getOrNull()
+            if (value == "D" || value == "E") {
+                Rank.F
+            } else {
+                runCatching { Rank.valueOf(value) }.getOrNull()
+            }
         }
     )
 

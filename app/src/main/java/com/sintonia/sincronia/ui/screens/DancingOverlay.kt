@@ -82,6 +82,7 @@ import com.sintonia.sincronia.processing.PoseConnections
 import com.sintonia.sincronia.processing.PoseLandmark
 import com.sintonia.sincronia.processing.RealtimePoseLandmarker
 import com.sintonia.sincronia.processing.RealtimePoseResult
+import com.sintonia.sincronia.processing.SkeletonConnectionScore
 import com.sintonia.sincronia.ui.theme.SintoniaTextMuted
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
@@ -94,6 +95,11 @@ private enum class DancePhase {
     Playing
 }
 
+private data class CameraOffset(
+    val x: Float,
+    val y: Float
+)
+
 @Composable
 fun DancingOverlay(
     dance: Dance,
@@ -103,20 +109,22 @@ fun DancingOverlay(
     onFinished: (DanceResult) -> Unit
 ) {
     val safeCountdown = if (countdownSeconds in setOf(3, 5, 10)) countdownSeconds else 10
+    val context = LocalContext.current
     var count by remember(dance.id, safeCountdown) { mutableIntStateOf(safeCountdown) }
     var phase by remember(dance.id) { mutableStateOf(DancePhase.Countdown) }
-    var cameraOffsetX by remember(dance.id) { mutableFloatStateOf(0f) }
-    var cameraOffsetY by remember(dance.id) { mutableFloatStateOf(0f) }
+    val savedCameraOffset = remember(context, dance.id) { context.readCameraOffset() }
+    var cameraOffsetX by remember(context, dance.id) { mutableFloatStateOf(savedCameraOffset.x) }
+    var cameraOffsetY by remember(context, dance.id) { mutableFloatStateOf(savedCameraOffset.y) }
     var cameraStreamReady by remember(dance.id) { mutableStateOf(false) }
     var goMinimumElapsed by remember(dance.id) { mutableStateOf(false) }
     var livePoseResult by remember(dance.id) { mutableStateOf<RealtimePoseResult?>(null) }
+    var skeletonConnectionScores by remember(dance.id) { mutableStateOf(emptyList<SkeletonConnectionScore>()) }
     var gameplayPoseStartTimestampMs by remember(dance.id) { mutableStateOf<Long?>(null) }
     var feedbackEvent by remember(dance.id) { mutableStateOf<FeedbackImageEvent?>(null) }
     var feedbackSequence by remember(dance.id) { mutableIntStateOf(0) }
     var finishedDispatched by remember(dance.id) { mutableStateOf(false) }
     val scoringEngine = remember(dance.id) { DanceScoringEngine.forDance(dance) }
     val accent = Color(dance.accentColor)
-    val context = LocalContext.current
     val feedbackHeight = with(LocalDensity.current) { FEEDBACK_IMAGE_HEIGHT_PX.toDp() }
     val view = LocalView.current
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
@@ -169,6 +177,7 @@ fun DancingOverlay(
     LaunchedEffect(dance.id, lensFacing, hasCameraPermission) {
         cameraStreamReady = false
         livePoseResult = null
+        skeletonConnectionScores = emptyList()
         gameplayPoseStartTimestampMs = null
         feedbackEvent = null
         feedbackSequence = 0
@@ -178,6 +187,7 @@ fun DancingOverlay(
     LaunchedEffect(showSkeleton) {
         if (!showSkeleton) {
             livePoseResult = null
+            skeletonConnectionScores = emptyList()
         }
     }
 
@@ -211,6 +221,7 @@ fun DancingOverlay(
                 onEnded = {
                     if (!finishedDispatched) {
                         finishedDispatched = true
+                        context.saveCameraOffset(CameraOffset(cameraOffsetX, cameraOffsetY))
                         onFinished(scoringEngine.finalResult())
                     }
                 },
@@ -223,6 +234,7 @@ fun DancingOverlay(
             hasCameraPermission = hasCameraPermission,
             compact = phase == DancePhase.Playing,
             poseResult = livePoseResult,
+            skeletonConnectionScores = skeletonConnectionScores,
             showSkeleton = showSkeleton,
             mirrorLandmarksHorizontally = lensFacing == CameraSelector.LENS_FACING_FRONT,
             onStreamingChanged = { cameraStreamReady = it },
@@ -239,6 +251,9 @@ fun DancingOverlay(
                         playbackTimestampMs = playbackTimestampMs,
                         landmarks = result.landmarks
                     )
+                    if (showSkeleton) {
+                        skeletonConnectionScores = scoreUpdate.skeletonConnectionScores
+                    }
                     val emittedFeedback = scoreUpdate.emittedFeedback
                     if (emittedFeedback != null) {
                         feedbackEvent = FeedbackImageEvent(
@@ -387,6 +402,7 @@ private fun AdaptiveCameraPreview(
     hasCameraPermission: Boolean,
     compact: Boolean,
     poseResult: RealtimePoseResult?,
+    skeletonConnectionScores: List<SkeletonConnectionScore>,
     showSkeleton: Boolean,
     mirrorLandmarksHorizontally: Boolean,
     onStreamingChanged: (Boolean) -> Unit,
@@ -418,6 +434,7 @@ private fun AdaptiveCameraPreview(
         if (showSkeleton && poseResult != null) {
             PoseLandmarksOverlay(
                 poseResult = poseResult,
+                connectionScores = skeletonConnectionScores,
                 mirrorHorizontally = mirrorLandmarksHorizontally,
                 modifier = Modifier.fillMaxSize()
             )
@@ -564,6 +581,7 @@ private fun ScoreFeedback.drawableResId(): Int =
     when (this) {
         ScoreFeedback.X -> R.drawable.ss_x
         ScoreFeedback.OK -> R.drawable.ss_ok
+        ScoreFeedback.BOM -> R.drawable.ss_bom
         ScoreFeedback.OTIMO -> R.drawable.ss_otimo
         ScoreFeedback.SS -> R.drawable.ss_ss
     }
@@ -613,6 +631,22 @@ private fun Context.saveFeedbackPosition(position: FeedbackPosition) {
 
 private fun Context.feedbackPreferences() =
     applicationContext.getSharedPreferences(FEEDBACK_PREFERENCES_NAME, Context.MODE_PRIVATE)
+
+private fun Context.readCameraOffset(): CameraOffset {
+    val preferences = cameraPreferences()
+    return CameraOffset(
+        x = preferences.getFloat(KEY_CAMERA_OFFSET_X, DEFAULT_CAMERA_OFFSET_X),
+        y = preferences.getFloat(KEY_CAMERA_OFFSET_Y, DEFAULT_CAMERA_OFFSET_Y)
+    )
+}
+
+private fun Context.saveCameraOffset(offset: CameraOffset) {
+    cameraPreferences()
+        .edit()
+        .putFloat(KEY_CAMERA_OFFSET_X, offset.x)
+        .putFloat(KEY_CAMERA_OFFSET_Y, offset.y)
+        .apply()
+}
 
 @Composable
 private fun CameraFlipButton(
@@ -725,6 +759,7 @@ private fun CameraPreview(
 @Composable
 private fun PoseLandmarksOverlay(
     poseResult: RealtimePoseResult,
+    connectionScores: List<SkeletonConnectionScore>,
     mirrorHorizontally: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -756,8 +791,9 @@ private fun PoseLandmarksOverlay(
                 start.visibility >= LANDMARK_VISIBILITY_THRESHOLD &&
                 end.visibility >= LANDMARK_VISIBILITY_THRESHOLD
             ) {
+                val score = connectionScores.scoreFor(startIndex, endIndex)
                 drawLine(
-                    color = Color(0xFF4ADE80),
+                    color = score.toSkeletonLineColor(),
                     start = landmarkOffset(start),
                     end = landmarkOffset(end),
                     strokeWidth = 3f,
@@ -769,13 +805,34 @@ private fun PoseLandmarksOverlay(
         for (landmark in landmarks) {
             if (landmark.visibility >= LANDMARK_VISIBILITY_THRESHOLD) {
                 drawCircle(
-                    color = Color(0xFFFFA24A),
-                    radius = 4f,
+                    color = Color(0xFFE9D5FF).copy(alpha = 0.72f),
+                    radius = 3.2f,
                     center = landmarkOffset(landmark)
                 )
             }
         }
 
+    }
+}
+
+private fun List<SkeletonConnectionScore>.scoreFor(startIndex: Int, endIndex: Int): SkeletonConnectionScore? {
+    for (score in this) {
+        if (
+            (score.startIndex == startIndex && score.endIndex == endIndex) ||
+            (score.startIndex == endIndex && score.endIndex == startIndex)
+        ) {
+            return score
+        }
+    }
+    return null
+}
+
+private fun SkeletonConnectionScore?.toSkeletonLineColor(): Color {
+    if (this == null || !compared) return Color(0xFF9CA3AF).copy(alpha = 0.58f)
+    return when {
+        score >= 0.75f -> Color(0xFF4ADE80)
+        score >= 0.45f -> Color(0xFFFACC15)
+        else -> Color(0xFFFB3B5F)
     }
 }
 
@@ -858,11 +915,15 @@ private fun preferredCameraFallback(availableLensFacings: Set<Int>): Int =
 
 private const val CAMERA_PREFERENCES_NAME = "sintonia_camera"
 private const val KEY_CAMERA_LENS_FACING = "camera_lens_facing"
+private const val KEY_CAMERA_OFFSET_X = "camera_offset_x"
+private const val KEY_CAMERA_OFFSET_Y = "camera_offset_y"
 private const val FEEDBACK_PREFERENCES_NAME = "sintonia_feedback"
 private const val KEY_FEEDBACK_X_FRACTION = "feedback_x_fraction"
 private const val KEY_FEEDBACK_Y_FRACTION = "feedback_y_fraction"
-private const val DEFAULT_FEEDBACK_X_FRACTION = 0.5f
-private const val DEFAULT_FEEDBACK_Y_FRACTION = 0.72f
+private const val DEFAULT_CAMERA_OFFSET_X = 0f
+private const val DEFAULT_CAMERA_OFFSET_Y = 0f
+private const val DEFAULT_FEEDBACK_X_FRACTION = 0.06f
+private const val DEFAULT_FEEDBACK_Y_FRACTION = 0.10f
 private const val FEEDBACK_IMAGE_HEIGHT_PX = 350f
 private const val LANDMARK_VISIBILITY_THRESHOLD = 0.35f
 private const val FEEDBACK_VISIBLE_MS = 900L
