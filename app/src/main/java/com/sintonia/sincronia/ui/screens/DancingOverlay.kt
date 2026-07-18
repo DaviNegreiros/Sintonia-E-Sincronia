@@ -75,7 +75,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.sintonia.sincronia.R
 import com.sintonia.sincronia.components.DanceVideoPlayer
 import com.sintonia.sincronia.domain.Dance
-import com.sintonia.sincronia.domain.DanceResult
+import com.sintonia.sincronia.domain.DanceSessionResult
 import com.sintonia.sincronia.domain.ScoreFeedback
 import com.sintonia.sincronia.processing.DanceScoringEngine
 import com.sintonia.sincronia.processing.PoseConnections
@@ -106,7 +106,7 @@ fun DancingOverlay(
     countdownSeconds: Int,
     showSkeleton: Boolean,
     onClose: () -> Unit,
-    onFinished: (DanceResult) -> Unit
+    onFinished: (DanceSessionResult) -> Unit
 ) {
     val safeCountdown = if (countdownSeconds in setOf(3, 5, 10)) countdownSeconds else 10
     val context = LocalContext.current
@@ -222,7 +222,7 @@ fun DancingOverlay(
                     if (!finishedDispatched) {
                         finishedDispatched = true
                         context.saveCameraOffset(CameraOffset(cameraOffsetX, cameraOffsetY))
-                        onFinished(scoringEngine.finalResult())
+                        onFinished(scoringEngine.finalSessionResult())
                     }
                 },
                 modifier = Modifier.fillMaxSize()

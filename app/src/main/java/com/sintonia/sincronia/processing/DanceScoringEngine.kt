@@ -2,6 +2,7 @@ package com.sintonia.sincronia.processing
 
 import com.sintonia.sincronia.domain.Dance
 import com.sintonia.sincronia.domain.DanceResult
+import com.sintonia.sincronia.domain.DanceSessionResult
 import com.sintonia.sincronia.domain.Rank
 import com.sintonia.sincronia.domain.ScoreFeedback
 import java.io.File
@@ -1473,7 +1474,7 @@ class DanceScoringEngine(
             else -> "partial_choreography_intent:${curve.name}"
         }
 
-    fun finalResult(): DanceResult {
+    fun finalSessionResult(): DanceSessionResult {
         val similarityAverage = if (allScores.isEmpty()) {
             0.0
         } else {
@@ -1494,7 +1495,10 @@ class DanceScoringEngine(
             finalScore = finalScore,
             feedbackHistory = feedbackHistory
         )
-        return result.copy(debugReportPath = debugReportFile?.absolutePath)
+        return DanceSessionResult(
+            result = result,
+            debugReportPath = debugReportFile?.absolutePath
+        )
     }
 
     private fun posesNear(timestampMs: Double): List<PoseFrame> {
