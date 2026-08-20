@@ -249,7 +249,9 @@ private const val REPORT_Z_DISTANCE_WEIGHT = 0.04
 private val REPORT_EMPTY_INT_ARRAY = IntArray(0)
 
 object RealtimeComparisonDebugConfig {
-    const val WRITE_REALTIME_COMPARISON_REPORT = true
+    // Disabled for release: keep this switch here so the debug report can be
+    // re-enabled later without touching the scoring algorithm.
+    const val WRITE_REALTIME_COMPARISON_REPORT = false
 }
 
 private val REPORT_BODY_REGIONS = listOf(
@@ -1036,17 +1038,20 @@ class DanceScoringEngine(
     private val intentWindow = ArrayDeque<IntentFrame>()
     private var smoothedIntentScore: Double? = null
     private var currentIntentCurve = INTENT_COMPLETE_CURVE
-    private val debugCollector = if (RealtimeComparisonDebugConfig.WRITE_REALTIME_COMPARISON_REPORT) {
-        RealtimeComparisonDebugCollector(
-            danceName = danceName,
-            outputFile = File(
-                movesetFile.parentFile ?: File("."),
-                REALTIME_COMPARISON_REPORT_FILE_NAME
-            )
-        )
-    } else {
-        null
-    }
+    // Debug report collector disabled for release.
+    // To re-enable in the future, restore this block and the record/write calls below.
+    private val debugCollector: RealtimeComparisonDebugCollector? = null
+//    private val debugCollector = if (RealtimeComparisonDebugConfig.WRITE_REALTIME_COMPARISON_REPORT) {
+//        RealtimeComparisonDebugCollector(
+//            danceName = danceName,
+//            outputFile = File(
+//                movesetFile.parentFile ?: File("."),
+//                REALTIME_COMPARISON_REPORT_FILE_NAME
+//            )
+//        )
+//    } else {
+//        null
+//    }
 
     init {
         referenceFrames = readMoveset(movesetFile).sortedBy { it.timestampMs }
@@ -1101,17 +1106,17 @@ class DanceScoringEngine(
         val participationAdjustedComparison = applyParticipationAnalysis(comparison)
         val stationaryAdjustedComparison = applyStationaryMotionStreak(participationAdjustedComparison)
         val adjustedComparison = applyIntentAnalysis(stationaryAdjustedComparison)
-        val adjustedChosenCandidate = chosenCandidate?.copy(comparison = adjustedComparison)
+//        val adjustedChosenCandidate = chosenCandidate?.copy(comparison = adjustedComparison)
         val evaluation = adjustedComparison.evaluation
         val emittedFeedback = updateScoreWindow(evaluation)
-        debugCollector?.recordFrame(
-            playbackTimestampMs = playbackTimestampMs,
-            realtimePose = realtimePose,
-            chosenCandidate = adjustedChosenCandidate,
-            candidateEvaluations = debugCandidateEvaluations.orEmpty(),
-            evaluation = evaluation,
-            accumulatedScore = currentScore()
-        )
+//        debugCollector?.recordFrame(
+//            playbackTimestampMs = playbackTimestampMs,
+//            realtimePose = realtimePose,
+//            chosenCandidate = adjustedChosenCandidate,
+//            candidateEvaluations = debugCandidateEvaluations.orEmpty(),
+//            evaluation = evaluation,
+//            accumulatedScore = currentScore()
+//        )
         previousRealtimePose = realtimePose
         return ScoreUpdate(
             evaluation = evaluation.copy(feedback = currentFeedback),
@@ -1487,17 +1492,16 @@ class DanceScoringEngine(
             rank = rankFor(finalScore),
             successPercentage = finalScore.roundToInt().coerceIn(0, 100)
         )
-        val debugReportFile = debugCollector?.writeReport(
-            referenceFrames = referenceFrames,
-            result = result,
-            similarityAverage = similarityAverage,
-            feedbackScore = feedbackScore,
-            finalScore = finalScore,
-            feedbackHistory = feedbackHistory
-        )
+//        val debugReportFile = debugCollector?.writeReport(
+//            referenceFrames = referenceFrames,
+//            result = result,
+//            similarityAverage = similarityAverage,
+//            feedbackScore = feedbackScore,
+//            finalScore = finalScore,
+//            feedbackHistory = feedbackHistory
+//        )
         return DanceSessionResult(
-            result = result,
-            debugReportPath = debugReportFile?.absolutePath
+            result = result
         )
     }
 

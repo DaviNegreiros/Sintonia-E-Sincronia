@@ -1,0 +1,21 @@
+# Gradle / Android build outputs
+.gradle/
+build/
+**/build/
+**/.cxx/
+
+# Local machine configuration
+local.properties
+
+# IDE files
+.idea/
+*.iml
+
+# Runtime/test caches
+__pycache__/
+*.py[cod]
+
+# Android packaged artifacts generated locally
+*.apk
+*.aab
+*.apks

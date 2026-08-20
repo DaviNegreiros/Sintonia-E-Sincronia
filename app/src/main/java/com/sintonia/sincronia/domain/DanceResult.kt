@@ -7,6 +7,7 @@ data class DanceResult(
 )
 
 data class DanceSessionResult(
-    val result: DanceResult,
-    val debugReportPath: String? = null
+    val result: DanceResult
+//    Debug report transport disabled for release.
+//    val debugReportPath: String? = null
 )

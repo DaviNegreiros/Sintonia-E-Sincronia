@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -112,16 +111,17 @@ fun LibraryScreen(
                 onClose = viewModel::closeResult,
                 modifier = Modifier.fillMaxSize()
             )
-            uiState.debugReportPath?.let { path ->
-                DebugReportButton(
-                    path = path,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 28.dp, vertical = 28.dp)
-                        .fillMaxWidth()
-                        .widthIn(max = 440.dp)
-                )
-            }
+//            Debug report button disabled for release.
+//            uiState.debugReportPath?.let { path ->
+//                DebugReportButton(
+//                    path = path,
+//                    modifier = Modifier
+//                        .align(Alignment.BottomCenter)
+//                        .padding(horizontal = 28.dp, vertical = 28.dp)
+//                        .fillMaxWidth()
+//                        .widthIn(max = 440.dp)
+//                )
+//            }
         }
     }
 }

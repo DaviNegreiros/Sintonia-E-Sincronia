@@ -15,8 +15,9 @@ import kotlinx.coroutines.launch
 data class DanceLibraryUiState(
     val selectedDance: Dance? = null,
     val isDancing: Boolean = false,
-    val result: DanceResult? = null,
-    val debugReportPath: String? = null
+    val result: DanceResult? = null
+//    Debug report transport disabled for release.
+//    val debugReportPath: String? = null
 )
 
 class DanceLibraryViewModel(
@@ -67,8 +68,8 @@ class DanceLibraryViewModel(
         _uiState.value = DanceLibraryUiState(
             selectedDance = repository.dances.value.firstOrNull { it.id == selectedDance.id } ?: selectedDance,
             isDancing = false,
-            result = result,
-            debugReportPath = sessionResult.debugReportPath
+            result = result
+//            debugReportPath = sessionResult.debugReportPath
         )
     }
 

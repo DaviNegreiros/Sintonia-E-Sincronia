@@ -1,5 +1,9 @@
 package com.sintonia.sincronia.ui.screens
 
+/*
+Debug report UI disabled for release.
+Keep this file commented so the button/modal can be restored by a developer later.
+
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -205,3 +209,4 @@ private fun JSONObject?.optFormattedDouble(name: String): String =
         ?.takeIf { !it.isNaN() }
         ?.let { ((it * 10.0).toInt() / 10.0).toString() }
         ?: "-"
+*/
