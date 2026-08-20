@@ -2,6 +2,8 @@ package com.sintonia.sincronia.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +52,7 @@ fun HomeScreen(
 ) {
     var showTips by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showLicenses by remember { mutableStateOf(false) }
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -120,8 +124,15 @@ fun HomeScreen(
                 settings = settings,
                 onShowSkeletonChange = settingsViewModel::setShowSkeleton,
                 onCountdownChange = settingsViewModel::setCountdownSeconds,
+                onLicensesClick = {
+                    showSettings = false
+                    showLicenses = true
+                },
                 onDismiss = { showSettings = false }
             )
+        }
+        if (showLicenses) {
+            ThirdPartyLicensesDialog(onDismiss = { showLicenses = false })
         }
     }
 }
@@ -186,6 +197,7 @@ private fun SettingsDialog(
     settings: AppSettings,
     onShowSkeletonChange: (Boolean) -> Unit,
     onCountdownChange: (Int) -> Unit,
+    onLicensesClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -236,6 +248,45 @@ private fun SettingsDialog(
                         }
                     }
                 }
+
+                TextButton(onClick = onLicensesClick) {
+                    Text("Licenças de terceiros", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar", color = SintoniaPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun ThirdPartyLicensesDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val licensesText = remember(context) {
+        runCatching {
+            context.assets.open("third_party_licenses.txt").bufferedReader().use { it.readText() }
+        }.getOrElse {
+            "Não foi possível abrir as licenças de terceiros."
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF160730),
+        title = {
+            Text("Licenças de terceiros", color = SintoniaText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = licensesText,
+                    color = SintoniaTextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
             }
         },
         confirmButton = {

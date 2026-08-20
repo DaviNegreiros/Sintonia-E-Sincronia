@@ -1,0 +1,55 @@
+ninja: Entering directory `C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\.cxx\RelWithDebInfo\6h5z3617\armeabi-v7a'
+[1/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/compare_gcc.cc.o
+[2/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/compare_win.cc.o
+[3/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_jpeg.cc.o
+[4/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/compare_common.cc.o
+[5/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/mjpeg_validate.cc.o
+[6/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/mjpeg_decoder.cc.o
+[7/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/cpu_id.cc.o
+[8/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_to_i420.cc.o
+[9/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/compare.cc.o
+[10/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_to_argb.cc.o
+[11/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_argb.cc.o
+[12/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_gcc.cc.o
+[13/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_lsx.cc.o
+[14/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_any.cc.o
+[15/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_win.cc.o
+[16/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_from.cc.o
+[17/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_from_argb.cc.o
+[18/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate_common.cc.o
+[19/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_rvv.cc.o
+[20/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert.cc.o
+[21/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_lasx.cc.o
+[22/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_gcc.cc.o
+[23/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_win.cc.o
+[24/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_gcc.cc.o
+[25/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_lsx.cc.o
+[26/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_lsx.cc.o
+[27/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_argb.cc.o
+[28/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/video_common.cc.o
+[29/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_win.cc.o
+[30/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_any.cc.o
+[31/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/rotate.cc.o
+[32/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_rvv.cc.o
+[33/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_any.cc.o
+[34/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_rgb.cc.o
+[35/54] Building CXX object CMakeFiles/sincronia_yuv.dir/LibyuvBridge.cpp.o
+[36/54] Building C object libyuv/CMakeFiles/yuvconstants.dir/util/yuvconstants.c.o
+[37/54] Building CXX object libyuv/CMakeFiles/yuv_neon.dir/source/compare_neon.cc.o
+[38/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_uv.cc.o
+[39/54] Building CXX object libyuv/CMakeFiles/yuvconvert.dir/util/yuvconvert.cc.o
+[40/54] Building CXX object libyuv/CMakeFiles/yuv_neon.dir/source/rotate_neon.cc.o
+[41/54] Building CXX object libyuv/CMakeFiles/yuv_neon.dir/source/scale_neon.cc.o
+[42/54] Building C object libyuv/CMakeFiles/cpuid.dir/util/cpuid.c.o
+[43/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale.cc.o
+[44/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/planar_functions.cc.o
+[45/54] Building CXX object libyuv/CMakeFiles/yuv_neon.dir/source/row_neon.cc.o
+[46/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/scale_common.cc.o
+[47/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/convert_argb.cc.o
+[48/54] Building CXX object libyuv/CMakeFiles/yuv_common_objects.dir/source/row_common.cc.o
+[49/54] Linking CXX static library libyuv\libyuv.a
+[50/54] Linking CXX shared library C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\build\intermediates\cxx\RelWithDebInfo\6h5z3617\obj\armeabi-v7a\libyuv.so
+[51/54] Linking CXX executable C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\build\intermediates\cxx\RelWithDebInfo\6h5z3617\obj\armeabi-v7a\yuvconvert
+[52/54] Linking CXX shared library C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\build\intermediates\cxx\RelWithDebInfo\6h5z3617\obj\armeabi-v7a\libsincronia_yuv.so
+[53/54] Linking CXX executable C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\build\intermediates\cxx\RelWithDebInfo\6h5z3617\obj\armeabi-v7a\cpuid
+[54/54] Linking CXX executable C:\Users\dvmrn\Repositórios\ApenasDance-AiMotionTrackingDanceGame\app\build\intermediates\cxx\RelWithDebInfo\6h5z3617\obj\armeabi-v7a\yuvconstants
